@@ -53,14 +53,14 @@ sequenceDiagram
     Note over AI: Razonamiento: <br/>Detecta intención de compra.<br/>Necesita tool: "add_to_cart"
     
     AI-->>Backend: Call Tool: add_to_cart(product="Pantalón", qty=2)
-    Backend->>DB: SELECT stock FROM products WHERE name LIKE '%teclado%'
+    Backend->>DB: SELECT stock FROM products WHERE name LIKE '%Pantalón%'
     DB-->>Backend: Stock: 5, ID: 101, Price: $50
     Backend->>DB: INSERT INTO cart_items (cart_id, 101, 2)
-    Backend-->>AI: Tool Output: {status: "success", added: "Teclado Genérico", price: 50}
+    Backend-->>AI: Tool Output: {status: "success", added: "Pantalón verde", price: 50}
     
     Note over AI: Generación de Respuesta:<br/>Confirma acción con tono de venta.
     
-    AI-->>Backend: "¡Listo! Agregué 2 teclados a tu carrito. Total parcial: $100."
+    AI-->>Backend: "¡Listo! Agregué 2 pantalones a tu carrito. Total parcial: $100."
     Backend->>User: Envía mensaje WhatsApp
 ```
 
