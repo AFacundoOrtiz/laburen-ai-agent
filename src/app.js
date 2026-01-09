@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get("/", (req, res) => {
-  res.send("🚀 Laburen AI Agent is running!");
+  res.send("Laburen AI Agent is running!");
 });
 
 app.listen(PORT, () => {
