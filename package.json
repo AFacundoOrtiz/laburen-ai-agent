@@ -9,7 +9,8 @@
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
     "db:init": "node src/scripts/run-init-sql.js",
-    "db:seed": "node src/scripts/seed.js"
+    "db:seed": "node src/scripts/seed.js",
+    "db:embeddings": "node src/scripts/generate-embeddings.js"
   },
   "keywords": [],
   "author": "",
@@ -17,6 +18,7 @@
   "packageManager": "pnpm@10.23.0",
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "@prisma/client": "^5.22.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
@@ -24,6 +26,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
-    "nodemon": "^3.1.11"
+    "nodemon": "^3.1.11",
+    "prisma": "^5.22.0"
   }
 }
