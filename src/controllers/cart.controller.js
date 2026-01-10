@@ -1,9 +1,9 @@
 import prisma from "../config/prisma.js";
 
+// POST /api/cart/create
 export const createCart = async (req, res) => {
   try {
     const { items = [] } = req.body;
-
     const cart = await prisma.cart.create({
       data: {
         items: {
@@ -23,12 +23,32 @@ export const createCart = async (req, res) => {
   }
 };
 
+// GET /api/cart/:waId
 export const getCart = async (req, res) => {
   try {
     const { waId } = req.params;
-    if (!waId) return res.status(400).json({ error: "Falta waId" });
 
-    const cart = await getOrCreateCart(waId);
+    if (!waId)
+      return res
+        .status(400)
+        .json({ error: "Falta el ID del carrito o usuario" });
+
+    const cart = await prisma.cart.findFirst({
+      where: {
+        OR: [{ id: waId }, { waId: waId }],
+      },
+      include: {
+        items: {
+          include: {
+            product: true,
+          },
+        },
+      },
+    });
+
+    if (!cart) {
+      return res.status(404).json({ error: "Carrito no encontrado" });
+    }
 
     const total = cart.items.reduce((acc, item) => {
       return acc + Number(item.product.price) * item.qty;
@@ -36,25 +56,12 @@ export const getCart = async (req, res) => {
 
     res.json({ ...cart, total });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error(error);
+    res.status(500).json({ error: "Error al obtener el carrito" });
   }
 };
 
-export const addItem = async (req, res) => {
-  try {
-    const { waId } = req.body;
-    const { productId, quantity } = req.body;
-
-    if (!waId || !productId)
-      return res.status(400).json({ error: "Datos incompletos" });
-
-    const result = await addItemToCart(waId, productId, Number(quantity) || 1);
-    res.json({ success: true, item: result });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-};
-
+// PATCH /api/cart/:id
 export const updateCart = async (req, res) => {
   try {
     const { id } = req.params;

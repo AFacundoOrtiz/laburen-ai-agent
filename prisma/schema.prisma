@@ -22,8 +22,6 @@ model Product {
   color       String?    @db.VarChar(50)
   size        String?    @db.VarChar(20)
   
-  // Campo vectorial para Gemini
-  embedding   Unsupported("vector(768)")? 
 
   cartItems   CartItem[]
 

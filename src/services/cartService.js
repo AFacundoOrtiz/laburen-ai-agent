@@ -5,10 +5,12 @@ const activeCarts = new Map();
 export const addItemToCart = async (waId, productId, quantity) => {
   try {
     const currentCartId = activeCarts.get(waId);
+
     const method = currentCartId ? "PATCH" : "POST";
+
     const endpoint = currentCartId
-      ? `${API_URL}/carts/${currentCartId}`
-      : `${API_URL}/carts`;
+      ? `${API_URL}/cart/${currentCartId}`
+      : `${API_URL}/cart`;
 
     console.log(`Ejecutando ${method} en ${endpoint}`);
 
@@ -23,7 +25,10 @@ export const addItemToCart = async (waId, productId, quantity) => {
     });
 
     if (!response.ok) {
-      throw new Error(`Error API ${method}: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `Error API ${method}: ${errorData.error || response.statusText}`
+      );
     }
 
     const cartData = await response.json();
@@ -54,20 +59,24 @@ export const updateCartItem = async (waId, productId, quantity) => {
       };
     }
 
-    console.log(`Ejecutando PATCH /carts/${currentCartId}`);
+    const endpoint = `${API_URL}/cart/${currentCartId}`;
+    console.log(`Ejecutando PATCH en ${endpoint}`);
 
     const payload = {
       items: [{ product_id: productId, qty: quantity }],
     };
 
-    const response = await fetch(`${API_URL}/carts/${currentCartId}`, {
+    const response = await fetch(endpoint, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
 
     if (!response.ok) {
-      throw new Error(`Error API PATCH: ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(
+        `Error API PATCH: ${errorData.error || response.statusText}`
+      );
     }
 
     return { success: true, message: "Cantidad actualizada." };
@@ -80,7 +89,6 @@ export const updateCartItem = async (waId, productId, quantity) => {
 export const getCartInfo = async (waId) => {
   const currentCartId = activeCarts.get(waId);
   if (!currentCartId) return "El carrito está vacío.";
-
   return `Carrito activo ID: ${currentCartId}`;
 };
 
