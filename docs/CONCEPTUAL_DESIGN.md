@@ -2,97 +2,97 @@
 
 ## 1. Visión General y Arquitectura
 
-El sistema propone un Agente Conversacional Semi-Autónomo diseñado para actuar como un representante de ventas (Sales Rep). A diferencia de un chatbot basado en árboles de decisión, este agente utiliza un LLM (Large Language Model) como motor de razonamiento para interpretar la intención del usuario y ejecutar herramientas (Function Calling) sobre una API RESTful.
+El sistema implementa un Agente Conversacional Transaccional diseñado para actuar como un representante de ventas (Sales Rep) en WhatsApp. El núcleo del sistema se basa en una arquitectura desacoplada donde el Agente de IA actúa como un cliente orquestador que consume una API REST interna, simulando una integración real de servicios.
 
 ### Componentes del Sistema
 
-- Interface (Frontend): WhatsApp (vía Twilio/Meta API).
-- Orquestador (Backend): Node.js + Express + TypeScript. Actúa como el controlador que gestiona el ciclo de vida del mensaje.
-- Cerebro (Reasoning Engine): OpenAI GPT-4o-mini (Optimizado para latencia y costo).
-- Persistencia (DB): PostgreSQL con Prisma ORM (Garantiza integridad relacional en pedidos y stock).
+- Interface (Frontend): WhatsApp (vía Twilio Sandbox API).
+- Backend & API: Node.js + Express. Exponiendo endpoints RESTful (/api/products, /api/carts).
+- Cerebro (Reasoning Engine): Google Gemini 2.0 Flash. Seleccionado por su latencia ultra-baja y capacidad superior de Function Calling.
+- Persistencia (DB): PostgreSQL (Neon.tech) con Prisma ORM.
+- Infraestructura: Desplegado en Koyeb (PaaS).
 
 ### Diagrama de Arquitectura de Alto Nivel
 
 ```mermaid
 graph TD
     User((Usuario WhatsApp)) <-->|Msg / Webhook| Gateway[Twilio API]
-    Gateway <-->|HTTP POST| Server[Node.js API Gateway]
+    Gateway <-->|HTTP POST| Server[Node.js Server]
     
-    subgraph "Core Agent Logic"
-        Server <-->|Context + Tools| LLM[OpenAI GPT-4o]
-        LLM -->|Function Call Intent| ToolHandler[Tool Executor]
-        ToolHandler -->|JSON Result| LLM
+    subgraph "Agent Logic Layer"
+        Server <-->|Context + Tools| AI[Gemini 2.0 Flash]
+        AI -->|Decision: Call Tool| Service[Agent Service]
     end
     
-    subgraph "Business Domain"
-        ToolHandler -->|CRUD Operations| StoreAPI[Store Controller]
-        StoreAPI -->|SQL Queries| DB[(PostgreSQL)]
+    subgraph "Internal REST API Layer"
+        Service -->|fetch GET/POST/PATCH| API[Express API Routes]
+        API -->|Prisma Queries| DB[(PostgreSQL)]
     end
 ```
 
 ## 2. Flujo de Interacción (Sequence Map)
 
-El siguiente diagrama ilustra cómo el agente maneja una solicitud compleja: "Quiero dos prendas, pero fijate si tenés stock".
+El siguiente diagrama ilustra cómo el agente maneja una solicitud de compra, actuando como intermediario entre el usuario y la API REST.
 
-1. Recepción: El mensaje entra al sistema.
-2. Razonamiento: El LLM analiza si necesita datos externos.
-3. Ejecución: El sistema consulta la DB.
-4. Respuesta: El LLM formula la respuesta final con datos reales.
+1. Recepción: El usuario pide un producto.
+2. Razonamiento: Gemini decide usar la herramienta add_to_cart.
+3. Consumo API: El servicio ejecuta un fetch a la API local (http://localhost...).
+4. Persistencia: La API guarda en PostgreSQL.
+5. Respuesta: La API devuelve el objeto creado, y Gemini redacta la confirmación.
 
 ```mermaid
 sequenceDiagram
     participant User as Usuario (WhatsApp)
-    participant Backend as Node.js Server
-    participant AI as LLM (OpenAI)
+    participant Agent as Agente (Gemini)
+    participant Service as CartService (Client)
+    participant API as API REST (Express)
     participant DB as PostgreSQL
 
-    User->>Backend: "Quiero comprar 2 prendas"
-    Backend->>DB: Get Conversation History
-    Backend->>AI: Prompt + History + Tools Definition
+    User->>Agent: "Quiero la sudadera azul, dame 1"
     
-    Note over AI: Razonamiento: <br/>Detecta intención de compra.<br/>Necesita tool: "add_to_cart"
+    Note over Agent: Razonamiento:<br/>Detecta intención de compra.<br/>Tool: "add_to_cart"
     
-    AI-->>Backend: Call Tool: add_to_cart(product="Pantalón", qty=2)
-    Backend->>DB: SELECT stock FROM products WHERE name LIKE '%Pantalón%'
-    DB-->>Backend: Stock: 5, ID: 101, Price: $50
-    Backend->>DB: INSERT INTO cart_items (cart_id, 101, 2)
-    Backend-->>AI: Tool Output: {status: "success", added: "Pantalón verde", price: 50}
+    Agent-->>Service: Ejecutar add_to_cart(id="...", qty=1)
     
-    Note over AI: Generación de Respuesta:<br/>Confirma acción con tono de venta.
+    Note over Service: Lógica de Sesión:<br/>Determina si es POST (nuevo) o PATCH (existente)
     
-    AI-->>Backend: "¡Listo! Agregué 2 pantalones a tu carrito. Total parcial: $100."
-    Backend->>User: Envía mensaje WhatsApp
+    Service->>API: POST /api/carts { items: [...] }
+    API->>DB: INSERT INTO Cart / CartItems
+    DB-->>API: Retorna Objeto Carrito
+    API-->>Service: JSON { id: "uuid", items: [...] }
+    Service-->>Agent: { success: true, message: "Creado" }
+    
+    Note over Agent: Generación de Respuesta:<br/>Formato amigable sin IDs técnicos.
+    
+    Agent-->>User: "¡Listo! Agregué la Sudadera Azul a tu pedido."
 ```
 
 ## 3. Definición de Endpoints y Herramientas (Tools)
 
-El agente interactúa con la base de datos exclusivamente a través de una API interna estructurada, lo que permite desacoplar la lógica de IA de la lógica de negocio.
+El agente no accede a la base de datos directamente. Utiliza herramientas definidas que consumen los endpoints REST requeridos por el desafío.
 
 ### API REST (Nivel de Negocio)
 
-| Verbo | Endpoint | Descripción | Herramienta de IA Asociada |
+| Herramienta (Tool Name) | Descripción | Endpoint Consumido | Verbo HTTP |
 | :--- | :--- | :--- | :--- |
-| GET | /products | Busca productos por nombre/descripción. | function: search_products(query) |
-| GET | /products/:id | Obtiene detalles específicos (stock/precio). | function: get_product_details(id) |
-| POST | /carts | Crea carrito o agrega items. | function: add_to_cart(product_id, qty) |
-| PATCH | /carts/:id | Modifica cantidades o elimina items. | function: update_cart_item(item_id, qty) |
+| search_products | Busca en catálogo por query. | /api/products?q={query} | GET |
+| add_to_cart | Agrega items (crea carrito si es necesario). | /api/carts | POST |
+| update_cart_item | Modifica cantidad de un item existente. | /api/carts/:id | PATCH |
+| clear_cart | Cierra la sesión de compra actual. | (Lógica interna / Reset) | N/A |
 
 ### Estrategia de Prompt Engineering (System Prompt)
 
-El agente operará bajo las siguientes directrices estrictas:
+El agente opera bajo reglas estrictas configuradas en agentService.js:
 
-1. Role: "Eres un asistente de ventas útil y conciso de Laburen Shop."
-2. Constraint: "Nunca inventes precios o stock. Si la herramienta devuelve error, comunícalo al usuario."
-3. Format: "Usa emojis moderados y mantén las respuestas cortas (optimizadas para chat móvil)."
+1. Rol: Vendedor profesional de "Laburen".
+2. Sanitización: "NO muestres IDs: Nunca muestres los UUIDs al usuario."
+3. Formato: "Formato de Precio: Muestra precios limpios ($15.50) sin caracteres de escape."
+4. Estilo: Uso de negritas (*) para resaltar productos y listas para facilitar la lectura en móvil.
 
 ## 4. Métricas de Viabilidad y Éxito
 
-Para evaluar el rendimiento del agente en un entorno productivo, se proponen las siguientes métricas clave:
+1. Latencia: Gracias al uso de gemini-2.0-flash y el despliegue en la nube, el tiempo de respuesta promedio es < 3 segundos.
 
-1. Latencia E2E (End-to-End): Tiempo total desde que el usuario envía el mensaje hasta recibir respuesta.
-Objetivo: < 4 segundos (para mantener la fluidez en WhatsApp).
+2. Manejo de Sesión: Se implementó un sistema de mapeo en memoria (activeCarts) para vincular el waId (WhatsApp ID) con los uuid de los carritos de la API anónima.
 
-2. Tasa de Llamadas a Herramientas (Tool Call Rate): Porcentaje de mensajes que derivan en una acción de base de datos vs. charla casual.
-Indicador: Mide la efectividad del agente para cerrar ventas.
-
-3. Tasa de Alucinación (Error Rate): Frecuencia con la que el agente intenta vender productos sin stock (controlado vía validación en backend).
+3. Resiliencia: El sistema maneja errores 404/500 de la API y responde al usuario con mensajes de error amigables ("Tuve un problema consultando el catálogo").
