@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { generateSKU } from "../utils/skuGenerator.js"; // Importante la extensión .js
+import { generateSKU } from "../utils/skuGenerator.js";
 import { TextUtils, PriceUtils } from "../utils/formatters.js";
 
 export class ProductTransformer {

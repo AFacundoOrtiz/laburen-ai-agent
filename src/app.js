@@ -13,9 +13,9 @@ app.use(express.json());
 app.use("/api", mainRouter);
 
 app.get("/", (req, res) => {
-  res.send("🤖 Laburen AI Agent está activo");
+  res.send("Laburen AI Agent está activo");
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });

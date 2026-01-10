@@ -1,9 +1,3 @@
-/**
- * Función pura para generar un SKU inteligente
- * @param {string} name - Nombre del producto
- * @param {number|string} price - Precio del producto
- * @returns {string} SKU generado (Ej: SUD-BLA-1500)
- */
 export function generateSKU(name, price) {
   const cleanName = name
     .toUpperCase()
