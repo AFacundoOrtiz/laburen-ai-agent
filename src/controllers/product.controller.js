@@ -1,35 +1,56 @@
 import prisma from "../config/prisma.js";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const embeddingModel = genAI.getGenerativeModel({
+  model: "text-embedding-004",
+});
 
 // GET /products
 export const getProducts = async (req, res) => {
   try {
     const { q } = req.query;
 
-    let whereClause = {};
-    if (q) {
-      whereClause = {
-        OR: [
-          { name: { contains: q, mode: "insensitive" } },
-          { description: { contains: q, mode: "insensitive" } },
-        ],
-      };
+    if (!q) {
+      const products = await prisma.product.findMany({
+        take: 20,
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          stock: true,
+          description: true,
+        },
+      });
+      return res.json(products);
     }
 
-    const products = await prisma.product.findMany({
-      where: whereClause,
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        stock: true,
-        description: true,
-      },
-    });
+    const result = await embeddingModel.embedContent(q);
+    const vector = result.embedding.values;
 
-    res.json(products);
+    const vectorString = `[${vector.join(",")}]`;
+
+    const products = await prisma.$queryRaw`
+      SELECT 
+        id, 
+        name, 
+        description, 
+        price, 
+        stock
+      FROM products
+      ORDER BY embedding <=> ${vectorString}::vector
+      LIMIT 10;
+    `;
+
+    const formattedProducts = products.map((p) => ({
+      ...p,
+      price: Number(p.price),
+    }));
+
+    res.json(formattedProducts);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Error al obtener productos" });
+    console.error("Error en getProducts:", error);
+    res.status(500).json({ error: "Error al buscar productos" });
   }
 };
 
