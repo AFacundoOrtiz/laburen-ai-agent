@@ -15,7 +15,7 @@
     "db:embeddings": "node src/scripts/generate-embeddings.js"
   },
   "engines": {
-  "node": "20.16.0"
+    "node": "20.16.0"
   },
   "keywords": [],
   "author": "",
@@ -23,12 +23,14 @@
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
     "@prisma/client": "^5.22.0",
+    "body-parser": "^2.2.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "pg": "^8.16.3",
-    "xlsx": "^0.18.5",
-    "prisma": "^5.22.0"
+    "prisma": "^5.22.0",
+    "twilio": "^5.11.2",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "nodemon": "^3.1.11"
