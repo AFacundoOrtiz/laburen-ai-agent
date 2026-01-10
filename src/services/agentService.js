@@ -89,6 +89,30 @@ const functions = {
   },
 };
 
+const sendMessageWithRetry = async (
+  chat,
+  payload,
+  retries = 3,
+  delay = 1000
+) => {
+  try {
+    return await chat.sendMessage(payload);
+  } catch (error) {
+    const errorMsg = error.message || "";
+    const isQuotaError = errorMsg.includes("429") || errorMsg.includes("503");
+
+    if (isQuotaError && retries > 0) {
+      console.warn(
+        `Gemini sobrecargado (429/503). Reintentando en ${delay}ms... (Intentos restantes: ${retries})`
+      );
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return sendMessageWithRetry(chat, payload, retries - 1, delay * 2);
+    }
+
+    throw error;
+  }
+};
+
 export const processUserMessage = async (waId, message) => {
   try {
     const chat = model.startChat({
@@ -121,7 +145,7 @@ export const processUserMessage = async (waId, message) => {
       ],
     });
 
-    const result = await chat.sendMessage(message);
+    const result = await sendMessageWithRetry(chat, message);
     const response = result.response;
 
     const call = response.functionCalls() ? response.functionCalls()[0] : null;
@@ -134,7 +158,7 @@ export const processUserMessage = async (waId, message) => {
 
       const actionResponse = await functions[functionName](args, waId);
 
-      const result2 = await chat.sendMessage([
+      const result2 = await sendMessageWithRetry(chat, [
         {
           functionResponse: {
             name: functionName,
@@ -148,7 +172,7 @@ export const processUserMessage = async (waId, message) => {
 
     return response.text();
   } catch (error) {
-    console.error("Error en processUserMessage:", error);
-    return "Lo siento, tuve un error procesando tu solicitud. ¿Podrías intentar de nuevo?";
+    console.error("Error crítico en processUserMessage:", error);
+    return "Lo siento, estoy recibiendo muchas consultas en este momento. ¿Podrías intentar de nuevo en unos segundos?";
   }
 };
