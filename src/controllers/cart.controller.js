@@ -1,8 +1,32 @@
+import prisma from "../config/prisma.js";
 import {
   getOrCreateCart,
   addItemToCart,
   clearCart,
 } from "../services/cartService.js";
+
+export const createCart = async (req, res) => {
+  try {
+    const { items = [] } = req.body;
+
+    const cart = await prisma.cart.create({
+      data: {
+        items: {
+          create: items.map((item) => ({
+            productId: item.product_id,
+            qty: item.qty,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    res.status(201).json(cart);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al crear el carrito" });
+  }
+};
 
 export const getCart = async (req, res) => {
   try {
@@ -33,5 +57,56 @@ export const addItem = async (req, res) => {
     res.json({ success: true, item: result });
   } catch (error) {
     res.status(500).json({ error: error.message });
+  }
+};
+
+export const updateCart = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { items } = req.body;
+
+    const cartExists = await prisma.cart.findUnique({ where: { id } });
+    if (!cartExists)
+      return res.status(404).json({ error: "Carrito no encontrado" });
+
+    if (!items || !Array.isArray(items)) {
+      return res.status(400).json({ error: "Formato de items inválido" });
+    }
+
+    for (const item of items) {
+      if (item.qty <= 0) {
+        await prisma.cartItem.deleteMany({
+          where: {
+            cartId: id,
+            productId: item.product_id,
+          },
+        });
+      } else {
+        await prisma.cartItem.upsert({
+          where: {
+            cartId_productId: {
+              cartId: id,
+              productId: item.product_id,
+            },
+          },
+          update: { qty: item.qty },
+          create: {
+            cartId: id,
+            productId: item.product_id,
+            qty: item.qty,
+          },
+        });
+      }
+    }
+
+    const updatedCart = await prisma.cart.findUnique({
+      where: { id },
+      include: { items: true },
+    });
+
+    res.json(updatedCart);
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Error al actualizar el carrito" });
   }
 };
