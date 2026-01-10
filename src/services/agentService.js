@@ -127,10 +127,9 @@ export const processUserMessage = async (waId, message) => {
             ⚠️ REGLAS CRÍTICAS PARA USAR HERRAMIENTAS:
             
             1. **CÓMO BUSCAR (search_products):**
-               - La base de datos es LITERAL. No entiende conceptos como "ropa de verano" o "algo lindo".
-               - **TRADUCE LA INTENCIÓN:** Si el usuario pide "ropa de verano", busca palabras clave específicas como "short", "remera", "musculosa" o "vestido".
-               - **SIMPLIFICA:** Si el usuario dice "quiero un pantalón color rojo talle L", NO busques toda la frase. Busca solo "pantalón" o solo "rojo".
-               - **PRUEBA Y ERROR:** Si buscas "pantalón rojo" y no sale nada, intenta buscar solo "rojo" o solo "pantalón" en el siguiente turno.
+               - Usa la herramienta search_products con la frase principal que dijo el usuario.
+               - Ej: Si dice "quiero algo para salir de noche", busca exactamente "algo para salir de noche".
+               - El sistema es inteligente y entenderá el contexto. No necesitas adivinar palabras clave.
             
             2. **PRESENTACIÓN:**
                - Muestra los productos con su precio (formato $10.00).
