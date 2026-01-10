@@ -35,10 +35,10 @@ graph TD
     User <-->|WhatsApp Protocol| Twilio
     Twilio <-->|HTTP POST Webhook| Webhook
     Webhook <--> AgentService
-    AgentService <-->|Prompt & Tools| Gemini
+    AgentService <-->|"Prompt & Tools"| Gemini
     
-    %% La conexión clave del challenge: El agente consume la API
-    AgentService <-->|fetch (HTTP)| API_Gateway
+    %% CORRECCIÓN AQUÍ: Comillas dobles agregadas
+    AgentService <-->|"fetch (HTTP)"| API_Gateway
     
     API_Gateway --> Prisma
     Prisma <-->|SQL Connection| DB
