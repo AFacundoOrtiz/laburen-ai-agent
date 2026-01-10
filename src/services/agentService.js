@@ -1,43 +1,96 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { toolsDefinition } from "../config/tools.js";
-import { searchProducts } from "./productService.js";
-import {
-  addItemToCart,
-  getOrCreateCart,
-  updateCartItem,
-  clearCart,
-} from "./cartService.js";
-import dotenv from "dotenv";
-
-dotenv.config();
+import * as productService from "./productService.js";
+import * as cartService from "./cartService.js";
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-const functionsMap = {
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: "search_products",
+        description: "Busca productos en el catálogo por nombre o descripción.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            query: {
+              type: "STRING",
+              description:
+                "Término de búsqueda (ej: 'pantalón rojo', 'verano')",
+            },
+          },
+          required: ["query"],
+        },
+      },
+      {
+        name: "add_to_cart",
+        description:
+          "Agrega un producto al carrito de compras. Si el carrito no existe, lo crea.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            product_id: {
+              type: "STRING",
+              description: "ID del producto a agregar",
+            },
+            quantity: { type: "INTEGER", description: "Cantidad a agregar" },
+          },
+          required: ["product_id", "quantity"],
+        },
+      },
+      {
+        name: "update_cart_item",
+        description:
+          "Actualiza la cantidad de un producto que YA está en el carrito.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            product_id: {
+              type: "STRING",
+              description: "ID del producto a modificar",
+            },
+            quantity: {
+              type: "INTEGER",
+              description: "Nueva cantidad total (ej: 0 para borrar)",
+            },
+          },
+          required: ["product_id", "quantity"],
+        },
+      },
+      {
+        name: "clear_cart",
+        description: "Vacía el carrito o cierra la sesión de compra actual.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+    ],
+  },
+];
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-pro",
+  tools: tools,
+});
+
+const functions = {
   search_products: async ({ query }) => {
-    return await searchProducts(query);
+    return await productService.searchProducts(query);
   },
-  add_to_cart: async ({ productId, quantity }, waId) => {
-    return await addItemToCart(waId, productId, quantity);
+  add_to_cart: async ({ product_id, quantity }, waId) => {
+    return await cartService.addItemToCart(waId, product_id, quantity);
   },
-  get_cart_info: async ({}, waId) => {
-    return await getOrCreateCart(waId);
-  },
-  update_cart_item: async ({ productId, quantity }, waId) => {
-    return await updateCartItem(waId, productId, quantity);
+  update_cart_item: async ({ product_id, quantity }, waId) => {
+    return await cartService.updateCartItem(waId, product_id, quantity);
   },
   clear_cart: async ({}, waId) => {
-    return await clearCart(waId);
+    return await cartService.clearCart(waId);
   },
 };
 
-export const processUserMessage = async (waId, userMessage) => {
+export const processUserMessage = async (waId, message) => {
   try {
-    const model = genAI.getGenerativeModel({
-      model: "gemini-flash-latest",
-      tools: toolsDefinition,
-    });
-
     const chat = model.startChat({
       history: [
         {
@@ -45,14 +98,14 @@ export const processUserMessage = async (waId, userMessage) => {
           parts: [
             {
               text: `
-            Actúa como un vendedor amable y profesional de la tienda de ropa "Laburen".
-            Tu objetivo es ayudar al usuario a encontrar productos y cerrar ventas.
-
-            REGLAS ESTRICTAS DE RESPUESTA (Síguelas siempre):
-            1. ⛔ NO muestres IDs: Nunca muestres los UUIDs (ej: 9f6307...) al usuario. Úsalos internamente para las funciones, pero ocúltalos en el texto.
-            2. 💲 Formato de Precio: Muestra los precios limpios, ej: "$15.50". NO uses barras invertidas (\) antes del signo $.
-            3. ✨ Estilo WhatsApp: Usa negritas (*) para resaltar el **nombre del producto** y el **precio**.
-            4. 🛒 Venta: Si el usuario muestra interés claro, ofrécele agregarlo al carrito.
+            Eres el vendedor virtual de "Laburen". Tu trabajo es ayudar a los clientes a comprar ropa.
+            
+            REGLAS:
+            1. Usa search_products para buscar lo que pide el usuario.
+            2. Muestra los productos con precio (formato $10.00) y sin mostrar IDs técnicos.
+            3. Si el usuario quiere comprar, usa add_to_cart.
+            4. Si quiere cambiar cantidad, usa update_cart_item.
+            5. Si dice "gracias" o "comprar", despídete amablemente.
             `,
             },
           ],
@@ -61,52 +114,41 @@ export const processUserMessage = async (waId, userMessage) => {
           role: "model",
           parts: [
             {
-              text: "¡Entendido! Soy el vendedor de Laburen. No mostraré IDs técnicos y cuidaré el formato de los precios para que se vean bien en WhatsApp. ¿Qué estás buscando hoy?",
+              text: "Entendido. Soy el vendedor de Laburen. ¿En qué puedo ayudarte?",
             },
           ],
         },
       ],
     });
 
-    console.log(`Usuario (${waId}): ${userMessage}`);
+    const result = await chat.sendMessage(message);
+    const response = result.response;
 
-    let result = await chat.sendMessage(userMessage);
-    let response = result.response;
-    let call = response.functionCalls();
+    const call = response.functionCalls() ? response.functionCalls()[0] : null;
 
-    let loops = 0;
-    while (call && call.length > 0 && loops < 5) {
-      loops++;
-      const firstCall = call[0];
-      const functionName = firstCall.name;
-      const args = firstCall.args;
+    if (call) {
+      const functionName = call.name;
+      const args = call.args;
 
-      console.log(`Agente ejecuta (${loops}): ${functionName}`, args);
+      console.log(`🤖 IA intenta ejecutar: ${functionName}`, args);
 
-      const actionFunction = functionsMap[functionName];
-      if (!actionFunction) {
-        throw new Error(`Función no encontrada: ${functionName}`);
-      }
+      const actionResponse = await functions[functionName](args, waId);
 
-      const apiResponse = await actionFunction(args, waId);
-
-      const resultPart = [
+      const result2 = await chat.sendMessage([
         {
           functionResponse: {
             name: functionName,
-            response: { result: apiResponse },
+            response: { result: actionResponse },
           },
         },
-      ];
+      ]);
 
-      result = await chat.sendMessage(resultPart);
-      response = result.response;
-      call = response.functionCalls();
+      return result2.response.text();
     }
 
     return response.text();
   } catch (error) {
-    console.error("Error en agentService:", error);
-    return "Lo siento, tuve un error procesando tu solicitud.";
+    console.error("Error en processUserMessage:", error);
+    return "Lo siento, tuve un error procesando tu solicitud. ¿Podrías intentar de nuevo?";
   }
 };

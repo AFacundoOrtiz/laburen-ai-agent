@@ -1,9 +1,4 @@
 import prisma from "../config/prisma.js";
-import {
-  getOrCreateCart,
-  addItemToCart,
-  clearCart,
-} from "../services/cartService.js";
 
 export const createCart = async (req, res) => {
   try {
