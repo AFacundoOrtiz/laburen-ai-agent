@@ -1,82 +1,90 @@
-import prisma from "../config/prisma.js";
+import { API_URL } from "../config/api.js";
 
-export const getOrCreateCart = async (waId) => {
-  let cart = await prisma.cart.findUnique({
-    where: { waId },
-    include: {
-      items: {
-        include: { product: true },
-      },
-    },
-  });
+const activeCarts = new Map();
 
-  if (!cart) {
-    cart = await prisma.cart.create({
-      data: { waId },
-      include: { items: true },
+export const addItemToCart = async (waId, productId, quantity) => {
+  try {
+    const currentCartId = activeCarts.get(waId);
+    const method = currentCartId ? "PATCH" : "POST";
+    const endpoint = currentCartId
+      ? `${API_URL}/carts/${currentCartId}`
+      : `${API_URL}/carts`;
+
+    console.log(`Ejecutando ${method} en ${endpoint}`);
+
+    const payload = {
+      items: [{ product_id: productId, qty: quantity }],
+    };
+
+    const response = await fetch(endpoint, {
+      method: method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
+
+    if (!response.ok) {
+      throw new Error(`Error API ${method}: ${response.statusText}`);
+    }
+
+    const cartData = await response.json();
+
+    activeCarts.set(waId, cartData.id);
+
+    return {
+      success: true,
+      cartId: cartData.id,
+      message: currentCartId
+        ? "Carrito actualizado"
+        : "Carrito creado exitosamente",
+    };
+  } catch (error) {
+    console.error("Error en addItemToCart (API):", error);
+    return { success: false, error: "No pude agregar el producto." };
   }
-
-  return cart;
-};
-
-export const addItemToCart = async (waId, productId, quantity = 1) => {
-  const cart = await getOrCreateCart(waId);
-
-  const item = await prisma.cartItem.upsert({
-    where: {
-      cartId_productId: {
-        cartId: cart.id,
-        productId: productId,
-      },
-    },
-    update: {
-      qty: { increment: quantity },
-    },
-    create: {
-      cartId: cart.id,
-      productId: productId,
-      qty: quantity,
-    },
-  });
-
-  return item;
-};
-
-export const clearCart = async (waId) => {
-  const cart = await getOrCreateCart(waId);
-
-  await prisma.cartItem.deleteMany({
-    where: { cartId: cart.id },
-  });
-
-  return { success: true };
 };
 
 export const updateCartItem = async (waId, productId, quantity) => {
-  const cart = await getOrCreateCart(waId);
+  try {
+    const currentCartId = activeCarts.get(waId);
 
-  if (quantity <= 0) {
-    await prisma.cartItem.deleteMany({
-      where: {
-        cartId: cart.id,
-        productId: productId,
-      },
+    if (!currentCartId) {
+      return {
+        success: false,
+        error: "No tienes un carrito activo para editar.",
+      };
+    }
+
+    console.log(`Ejecutando PATCH /carts/${currentCartId}`);
+
+    const payload = {
+      items: [{ product_id: productId, qty: quantity }],
+    };
+
+    const response = await fetch(`${API_URL}/carts/${currentCartId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
     });
-    return { status: "deleted", message: "Producto eliminado del carrito" };
+
+    if (!response.ok) {
+      throw new Error(`Error API PATCH: ${response.statusText}`);
+    }
+
+    return { success: true, message: "Cantidad actualizada." };
+  } catch (error) {
+    console.error("Error en updateCartItem (API):", error);
+    return { success: false, error: "Error al actualizar el carrito." };
   }
+};
 
-  const item = await prisma.cartItem.update({
-    where: {
-      cartId_productId: {
-        cartId: cart.id,
-        productId: productId,
-      },
-    },
-    data: {
-      qty: quantity,
-    },
-  });
+export const getCartInfo = async (waId) => {
+  const currentCartId = activeCarts.get(waId);
+  if (!currentCartId) return "El carrito está vacío.";
 
-  return { status: "updated", item };
+  return `Carrito activo ID: ${currentCartId}`;
+};
+
+export const clearCart = async (waId) => {
+  activeCarts.delete(waId);
+  return { success: true, message: "Carrito cerrado." };
 };

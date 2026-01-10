@@ -1,42 +1,30 @@
-import prisma from "../config/prisma.js";
-import { GoogleGenerativeAI } from "@google/generative-ai";
-import dotenv from "dotenv";
-
-dotenv.config();
-
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "text-embedding-004" });
+import { API_URL } from "../config/api.js";
 
 export const searchProducts = async (userQuery) => {
   try {
-    const result = await model.embedContent(userQuery);
-    const queryVector = result.embedding.values;
+    const response = await fetch(
+      `${API_URL}/products?q=${encodeURIComponent(userQuery)}`
+    );
 
-    const vectorString = `[${queryVector.join(",")}]`;
+    if (!response.ok) {
+      throw new Error(
+        `Error en la API: ${response.status} ${response.statusText}`
+      );
+    }
 
-    const products = await prisma.$queryRaw`
-      SELECT 
-        id, 
-        name, 
-        price, 
-        stock, 
-        description,
-        1 - (embedding <=> ${vectorString}::vector) as similarity
-      FROM products
-      WHERE 1 - (embedding <=> ${vectorString}::vector) > 0.4
-      ORDER BY similarity DESC
-      LIMIT 5;
-    `;
+    const products = await response.json();
 
     const formattedProducts = products.map((p) => ({
-      ...p,
+      id: p.id,
+      name: p.name,
       price: parseFloat(p.price),
-      similarity: parseFloat(p.similarity).toFixed(4),
+      stock: p.stock,
+      description: p.description,
     }));
 
     return formattedProducts;
   } catch (error) {
-    console.error("Error en búsqueda:", error);
+    console.error("Error conectando con la API de productos:", error.message);
     return [];
   }
 };
