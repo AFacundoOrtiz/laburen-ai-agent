@@ -113,7 +113,44 @@ const sendMessageWithRetry = async (
   }
 };
 
+const MOCK_RESPONSES = {
+  test_search: {
+    text: "Claro, buscando pantalones...",
+    functionCall: { name: "search_products", args: { query: "pantalón" } },
+  },
+  test_add: {
+    text: "Agregando al carrito...",
+    functionCall: {
+      name: "add_to_cart",
+      args: { product_id: "PON_AQUI_UN_UUID_VALIDO_DE_TU_DB", quantity: 1 },
+    },
+  },
+};
+
 export const processUserMessage = async (waId, message) => {
+  if (message.startsWith("test_") || process.env.USE_MOCK === "true") {
+    console.log("TEST ACTIVADO: Saltando llamada a Gemini...");
+
+    let mockAction = null;
+    if (message.includes("buscar")) mockAction = MOCK_RESPONSES["test_search"];
+    if (message.includes("comprar")) mockAction = MOCK_RESPONSES["test_add"];
+
+    if (mockAction) {
+      if (mockAction.functionCall) {
+        console.log(`Mock ejecutado: ${mockAction.functionCall.name}`);
+        const actionResponse = await functions[mockAction.functionCall.name](
+          mockAction.functionCall.args,
+          waId
+        );
+        return `[RESPUESTA MOCK] Herramienta ejecutada. Resultado: ${JSON.stringify(
+          actionResponse
+        )}`;
+      }
+      return mockAction.text;
+    }
+    return "[RESPUESTA MOCK] Soy el Agente Simulado. No gasté tokens.";
+  }
+
   try {
     const chat = model.startChat({
       history: [

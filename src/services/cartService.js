@@ -15,6 +15,7 @@ export const addItemToCart = async (waId, productId, quantity) => {
     console.log(`Ejecutando ${method} en ${endpoint}`);
 
     const payload = {
+      waId: waId,
       items: [{ product_id: productId, qty: quantity }],
     };
 

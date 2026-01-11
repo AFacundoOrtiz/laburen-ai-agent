@@ -1,11 +1,17 @@
 import prisma from "../config/prisma.js";
 
-// POST /api/cart/create
+// POST /api/cart
 export const createCart = async (req, res) => {
   try {
-    const { items = [] } = req.body;
+    const { items = [], waId } = req.body;
+    if (!waId) {
+      return res
+        .status(400)
+        .json({ error: "Falta el waId para crear el carrito" });
+    }
     const cart = await prisma.cart.create({
       data: {
+        waId: waId,
         items: {
           create: items.map((item) => ({
             productId: item.product_id,
@@ -18,7 +24,12 @@ export const createCart = async (req, res) => {
 
     res.status(201).json(cart);
   } catch (error) {
-    console.error(error);
+    console.error("Error Prisma:", error);
+    if (error.code === "P2002") {
+      return res
+        .status(409)
+        .json({ error: "Ya existe un carrito para este usuario" });
+    }
     res.status(500).json({ error: "Error al crear el carrito" });
   }
 };
