@@ -142,9 +142,18 @@ export const processUserMessage = async (waId, message) => {
         query: queryFinal,
       });
 
-      return `[RESPUESTA MOCK] Busqué: "${queryFinal}".\nResultados encontrados: ${
-        actionResponse.length
-      }\nDatos: ${JSON.stringify(actionResponse, null, 2)}`;
+      const topItems = actionResponse.slice(0, 5);
+
+      const listText = topItems
+        .map((p) => `• ${p.name} ($${p.price})`)
+        .join("\n");
+
+      return (
+        `[MOCK] Busqué: "${queryFinal}"\n` +
+        `Encontrados: ${actionResponse.length}\n` +
+        `Top 5:\n${listText}\n\n` +
+        `(JSON completo oculto por límite de caracteres)`
+      );
     }
 
     if (message.toLowerCase().includes("comprar")) {
