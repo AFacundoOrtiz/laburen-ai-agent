@@ -113,20 +113,6 @@ const sendMessageWithRetry = async (
   }
 };
 
-const MOCK_RESPONSES = {
-  test_search: {
-    text: "Claro, buscando pantalones...",
-    functionCall: { name: "search_products", args: { query: "pantalón" } },
-  },
-  test_add: {
-    text: "Agregando al carrito...",
-    functionCall: {
-      name: "add_to_cart",
-      args: { product_id: "PON_AQUI_UN_UUID_VALIDO_DE_TU_DB", quantity: 1 },
-    },
-  },
-};
-
 export const processUserMessage = async (waId, message) => {
   if (message.startsWith("test_") || process.env.USE_MOCK === "true") {
     console.log("TEST ACTIVADO: Saltando llamada a Gemini...");
@@ -171,7 +157,18 @@ export const processUserMessage = async (waId, message) => {
       )}`;
     }
 
-    return "[RESPUESTA MOCK] Comandos disponibles: 'test_ buscar [producto]' o 'test_ comprar'";
+    if (message.toLowerCase().includes("vaciar")) {
+      console.log(`Mock intentando vaciar el carrito...`);
+
+      const actionResponse = await functions.clear_cart({}, waId);
+
+      return (
+        `[RESPUESTA MOCK] Operación de limpieza ejecutada.\n` +
+        `Resultado: ${JSON.stringify(actionResponse, null, 2)}`
+      );
+    }
+
+    return "[RESPUESTA MOCK] Comandos disponibles: 'test_ buscar [producto]', 'test_ comprar' o 'test_ vaciar'";
   }
 
   try {
@@ -184,7 +181,7 @@ export const processUserMessage = async (waId, message) => {
               text: `
             Eres el vendedor virtual de "Laburen", una tienda de ropa moderna. Tu objetivo es cerrar ventas.
             
-            ⚠️ REGLAS CRÍTICAS PARA USAR HERRAMIENTAS:
+            REGLAS CRÍTICAS PARA USAR HERRAMIENTAS:
             
             1. **CÓMO BUSCAR (search_products):**
                - Usa la herramienta search_products con la frase principal que dijo el usuario.
@@ -193,7 +190,7 @@ export const processUserMessage = async (waId, message) => {
             
             2. **PRESENTACIÓN:**
                - Muestra los productos con su precio (formato $10.00).
-               - ⛔ JAMÁS muestres los UUIDs (ej: 550e8400-e29b...).
+               - JAMÁS muestres los UUIDs (ej: 550e8400-e29b...).
                - Usa negritas (*) para resaltar nombres y precios.
             
             3. **VENTA:**
@@ -218,7 +215,7 @@ export const processUserMessage = async (waId, message) => {
       const functionName = call.name;
       const args = call.args;
 
-      console.log(`🤖 IA intenta ejecutar: ${functionName}`, args);
+      console.log(`IA intenta ejecutar: ${functionName}`, args);
 
       const actionResponse = await functions[functionName](args, waId);
 
