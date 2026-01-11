@@ -131,24 +131,38 @@ export const processUserMessage = async (waId, message) => {
   if (message.startsWith("test_") || process.env.USE_MOCK === "true") {
     console.log("TEST ACTIVADO: Saltando llamada a Gemini...");
 
-    let mockAction = null;
-    if (message.includes("buscar")) mockAction = MOCK_RESPONSES["test_search"];
-    if (message.includes("comprar")) mockAction = MOCK_RESPONSES["test_add"];
+    if (message.toLowerCase().includes("buscar")) {
+      const queryReal = message.replace(/test_|buscar/gi, "").trim();
 
-    if (mockAction) {
-      if (mockAction.functionCall) {
-        console.log(`Mock ejecutado: ${mockAction.functionCall.name}`);
-        const actionResponse = await functions[mockAction.functionCall.name](
-          mockAction.functionCall.args,
-          waId
-        );
-        return `[RESPUESTA MOCK] Herramienta ejecutada. Resultado: ${JSON.stringify(
-          actionResponse
-        )}`;
-      }
-      return mockAction.text;
+      const queryFinal = queryReal || "pantalón";
+
+      console.log(`Mock ejecutando búsqueda real con: "${queryFinal}"`);
+
+      const actionResponse = await functions.search_products({
+        query: queryFinal,
+      });
+
+      return `[RESPUESTA MOCK] Busqué: "${queryFinal}".\nResultados encontrados: ${
+        actionResponse.length
+      }\nDatos: ${JSON.stringify(actionResponse, null, 2)}`;
     }
-    return "[RESPUESTA MOCK] Soy el Agente Simulado. No gasté tokens.";
+
+    if (message.toLowerCase().includes("comprar")) {
+      const mockUuid = "0575a5b4-3775-4c8d-b8a0-b99796f42519";
+
+      console.log(`Mock intentando agregar al carrito...`);
+      const actionResponse = await functions.add_to_cart(
+        { product_id: mockUuid, quantity: 1 },
+        waId
+      );
+      return `[RESPUESTA MOCK] Resultado de compra: ${JSON.stringify(
+        actionResponse,
+        null,
+        2
+      )}`;
+    }
+
+    return "[RESPUESTA MOCK] Comandos disponibles: 'test_ buscar [producto]' o 'test_ comprar'";
   }
 
   try {
