@@ -1,6 +1,6 @@
 import { API_URL } from "../config/api.js";
 
-// Agrega items. Si no existe carrito activo, la API se encarga de crearlo.
+// Agrega items. Si no existe carrito activo, se crea uno.
 export const addItemToCart = async (waId, productId, quantity) => {
   try {
     let currentCartId = null;
@@ -72,7 +72,7 @@ export const clearCart = async (waId) => {
 
 const changeCartStatus = async (waId, status) => {
   try {
-    console.log(`🔄 Cambiando estado de carrito ${waId} a ${status}`);
+    console.log(`Cambiando estado de carrito ${waId} a ${status}`);
 
     const response = await fetch(`${API_URL}/cart/${waId}/status`, {
       method: "PUT",
