@@ -2,7 +2,7 @@
 
 > Agente de ventas inteligente para WhatsApp, potenciado por **Google Gemini 2.0 Flash**, Node.js y PostgreSQL.
 
-Este proyecto implementa un asistente virtual capaz de gestionar un flujo de ventas completo (búsqueda de productos, armado de carrito y modificación de pedidos) actuando como una capa de inteligencia sobre una API RESTful tradicional.
+Este proyecto implementa un asistente virtual capaz de gestionar un flujo de ventas completo (búsqueda inteligente, venta cruzada, armado de carrito y cierre) actuando como un orquestador cognitivo sobre una API RESTful propia.
 
 ---
 
@@ -30,15 +30,20 @@ Para entender la arquitectura y el flujo de datos, consulta los documentos de di
 
 ```text
 src/
-├── config/         # Configuración (DB, API, LLM Tools)
-├── controllers/    # Lógica de los endpoints (REST & WhatsApp)
-├── routes/         # Definición de rutas Express
-├── services/       # Lógica de negocio y conexión con Gemini
-│   ├── agentService.js   # Cerebro del Agente (Prompt & Tools)
-│   ├── cartService.js    # Cliente interno para consumir la API
-│   └── productService.js # Cliente interno para búsqueda
-├── scripts/        # Utilities (Seed, Init DB, Tests)
-└── app.js          # Entry point
+├── ai/                 # 🧠 Cerebro del Agente (Nuevo)
+│   ├── functions.js    # Lógica de ejecución de herramientas
+│   ├── prompts.js      # System Prompt y reglas de negocio
+│   └── tools.js        # Definiciones JSON (Schemas) para Gemini
+├── config/             # Configuración (DB, Gemini Client, Twilio)
+├── controllers/        # Lógica de los endpoints (REST & WhatsApp)
+├── routes/             # Definición de rutas Express
+├── services/           # Lógica de negocio (Consumo de API interna)
+│   ├── agentService.js # Orquestador principal del chat
+│   └── productService.js # Cliente HTTP interno
+├── utils/              # Utilidades
+│   ├── mockHandler.js  # 🧪 Manejador de pruebas simuladas
+│   └── textUtils.js    # ✂️ Fragmentación y limpieza de texto
+└── app.js              # Entry point
 ```
 
 ---
@@ -60,6 +65,7 @@ DATABASE_URL="postgresql://user:pass@host:port/dbname"
 GEMINI_API_KEY="tu_api_key_de_google"
 TWILIO_ACCOUNT_SID="tu_sid"
 TWILIO_AUTH_TOKEN="tu_token"
+TWILIO_WHATSAPP_NUMBER="whatsapp:+14155238886"
 ```
 
 ### 3. Instalación de Dependencias
@@ -95,18 +101,34 @@ npm run dev
 
 ## 🔌 API Endpoints Principales
 
-El sistema expone una API REST que es consumida tanto por el Agente de IA como por clientes externos:
+La aplicación expone una API REST organizada por recursos. El Agente de IA consume internamente estos servicios, pero también están disponibles para integraciones externas.
 
+### 🛒 Carrito (`/api/cart`)
 | Método | Endpoint | Descripción |
 | :--- | :--- | :--- |
-| GET | /api/products | Lista productos (soporta filtro ?q=nombre). |
-| GET | /api/products/:id | Detalle de un producto específico. |
-| POST | /api/cart | Crea un carrito nuevo con items. |
-| PATCH | /api/cart/:id | Modifica cantidades o elimina items de un carrito. |
-| GET | /api/cart/:waId | Obtiene el carrito activo de un usuario. |
-| POST | /api/whatsapp/webhook | Entrada de mensajes desde Twilio. |
+| **GET** | `/api/cart/:waId` | Obtiene el carrito activo actual de un usuario (usando su ID de WhatsApp). |
+| **POST** | `/api/cart` | Crea un nuevo carrito o agrega items a uno existente. |
+| **PATCH** | `/api/cart/:id` | Modifica el contenido del carrito (cambiar cantidades o eliminar items). |
+| **PUT** | `/api/cart/:waId/status` | Actualiza el estado del pedido (ej: cerrar venta `COMPLETED` o cancelar `CANCELED`). |
 
-## 🧪 Testing
+### 📦 Productos (`/api/products`)
+| Método | Endpoint | Descripción |
+| :--- | :--- | :--- |
+| **GET** | `/api/products` | Lista el catálogo de productos disponible. |
+| **GET** | `/api/products/:id` | Obtiene los detalles completos (descripción, stock) de un producto específico. |
+
+### 🤖 Agente & Mensajería
+| Recurso | Método | Endpoint | Descripción |
+| :--- | :--- | :--- | :--- |
+| **Agent** | **POST** | `/api/agent/chat` | Endpoint de depuración para enviar mensajes directos al bot vía HTTP (Bypass de WhatsApp). |
+| **WhatsApp** | **POST** | `/api/whatsapp/webhook` | Webhook de entrada para recibir eventos y mensajes desde la API de Twilio. |
+
+## 🧪 Testing y Mock Mode
+
+Puedes probar el flujo completo sin conectar con Google Gemini.
+- Envía mensajes por WhatsApp que comiencen con test_ (ej: test_ buscar camisa).
+
+### Scripts Locales
 
 Puedes probar el flujo completo de compra (simulado) sin usar WhatsApp ejecutando:
 
