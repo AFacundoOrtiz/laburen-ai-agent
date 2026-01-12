@@ -4,7 +4,7 @@ import { toolsDefinition } from "../ai/tools.js";
 import { functionsMap } from "../ai/functions.js";
 import { handleMockMode } from "../utils/mockHandler.js";
 
-const GEN_AI_MODEL_NAME = "gemini-2.5-flash";
+const GEN_AI_MODEL_NAME = "gemini-2.0-flash";
 const MAX_TOOL_LOOPS = 5;
 
 const sendMessageWithRetry = async (
