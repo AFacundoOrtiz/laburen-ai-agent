@@ -226,10 +226,10 @@ export const processUserMessage = async (waId, message) => {
                 b) **CONTEXTO CONTINUO:** Si preguntan "¿y en azul?", combina con el producto anterior (ej: "camisa azul").
                 c) **PAGINACIÓN:** Siempre invita a ver más. Si piden "ver más", usa page: 2.
               
-              2. **FORMATO VISUAL (IMPORTANTE PARA WHATSAPP):**
-                - Usa **negritas** para nombres de productos y precios.
-                - Usa listas (•) para separar productos.
-                - Mantén los textos concisos. WhatsApp se lee rápido.
+              2. **FORMATO VISUAL (ESTRICTO PARA WHATSAPP):**
+                - **NEGRITAS:** Usa UN SOLO asterisco (*ejemplo*). NUNCA uses doble asterisco (**error**).
+                - **LISTAS:** Usa guiones o puntos (• item).
+                - Mantén los textos concisos.
               
               3. **CARRITO:**
                 - Usa el ID del historial para agregar (no busques de nuevo).

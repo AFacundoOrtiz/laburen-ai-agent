@@ -1,5 +1,18 @@
+const cleanWhatsAppText = (text) => {
+  if (!text) return "";
+
+  return text
+    .replace(/\*\*/g, "*")
+    .replace(/^### (.*$)/gim, "*$1*")
+    .replace(/^## (.*$)/gim, "*$1*")
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, "$1: $2");
+};
+
 export const smartSplit = (text, limit = 1500) => {
   if (!text) return [];
+
+  const cleanText = cleanWhatsAppText(text);
+
   if (text.length <= limit) return [text];
 
   const chunks = [];
