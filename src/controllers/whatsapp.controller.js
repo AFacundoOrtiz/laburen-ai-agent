@@ -1,43 +1,76 @@
 import { processUserMessage } from "../services/agentService.js";
-import twilio from "twilio";
+import { smartSplit } from "../utils/textUtils.js";
+import client from "../config/twilio.js";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const client = twilio(
-  process.env.TWILIO_ACCOUNT_SID,
-  process.env.TWILIO_AUTH_TOKEN
-);
+export const verifyWebhook = (req, res) => {
+  try {
+    const mode = req.query["hub.mode"];
+    const token = req.query["hub.verify_token"];
+    const challenge = req.query["hub.challenge"];
+
+    if (mode && token) {
+      if (mode === "subscribe" && token === process.env.WHATSAPP_VERIFY_TOKEN) {
+        console.log("WEBHOOK_VERIFIED");
+        res.status(200).send(challenge);
+      } else {
+        res.sendStatus(403);
+      }
+    } else {
+      res.sendStatus(400);
+    }
+  } catch (error) {
+    console.error("Error en verifyWebhook:", error);
+    res.sendStatus(500);
+  }
+};
 
 export const receiveMessage = async (req, res) => {
   try {
-    const incomingMsg = req.body.Body;
-    const from = req.body.From;
+    const incomingMessage = req.body.Body;
+    const waId = req.body.From;
+    const senderName = req.body.ProfileName || "Cliente";
 
-    console.log(`Mensaje recibido de ${from}: ${incomingMsg}`);
-
-    let aiResponse = await processUserMessage(from, incomingMsg);
-
-    if (
-      !aiResponse ||
-      typeof aiResponse !== "string" ||
-      aiResponse.trim() === ""
-    ) {
-      console.error("ALERTA: La IA devolvió una respuesta vacía o inválida.");
-      aiResponse =
-        "Lo siento, tuve un pequeño problema técnico pensando mi respuesta. ¿Podrías preguntarme de nuevo?";
+    if (!incomingMessage) {
+      return res.status(200).send("OK");
     }
 
-    await client.messages.create({
-      body: aiResponse,
-      from: "whatsapp:+14155238886",
-      to: from,
-    });
+    const responseText = await processUserMessage(waId, incomingMessage);
 
-    res.set("Content-Type", "text/xml");
-    res.send("<Response></Response>");
+    const messagesToSend = smartSplit(responseText, 1500);
+
+    for (const chunk of messagesToSend) {
+      if (chunk && chunk.trim().length > 0) {
+        await client.messages.create({
+          body: chunk,
+          from: process.env.TWILIO_WHATSAPP_NUMBER,
+          to: waId,
+        });
+
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+
+    res.status(200).send("OK");
   } catch (error) {
-    console.error("Error CRÍTICO en webhook de WhatsApp:", error);
+    console.error("Error en webhook de WhatsApp:", error);
+
+    const waId = req.body?.From;
+
+    if (waId) {
+      try {
+        await client.messages.create({
+          body: "Lo siento, tuve un error interno momentáneo. Por favor intenta de nuevo en unos segundos. 🤖🔧",
+          from: process.env.TWILIO_WHATSAPP_NUMBER,
+          to: waId,
+        });
+      } catch (fallbackError) {
+        console.error("Error enviando mensaje de fallback:", fallbackError);
+      }
+    }
+
     res.status(200).send("Error procesado");
   }
 };
