@@ -220,7 +220,8 @@ export const processUserMessage = async (waId, message) => {
                - Muestra Nombre, Precio y si hay Stock.
                - JAMÁS muestres UUIDs.
             
-            3. **CARRITO:**
+            3. **CARRITO (MEMORIA):**
+               - **IMPORTANTE:** Si el usuario pide agregar un producto que ACABAS de mostrar en la búsqueda anterior, **USA EL ID QUE YA TIENES EN EL HISTORIAL**. ¡NO vuelvas a buscar! Confía en tu memoria.
                - Usa 'add_to_cart' cuando confirmen interés. Muestra el total actualizado.
                - Usa 'update_cart_item' para cambios.
             
@@ -238,20 +239,25 @@ export const processUserMessage = async (waId, message) => {
       ],
     });
 
-    const result = await sendMessageWithRetry(chat, message);
-    const response = result.response;
+    let result = await sendMessageWithRetry(chat, message);
+    let response = result.response;
+    let call = response.functionCalls() ? response.functionCalls()[0] : null;
+    let loops = 0;
 
-    const call = response.functionCalls() ? response.functionCalls()[0] : null;
-
-    if (call) {
+    while (call && loops < 5) {
       const functionName = call.name;
       const args = call.args;
+      loops++;
 
-      console.log(`IA ejecuta: ${functionName}`, args);
+      let actionResponse;
+      try {
+        actionResponse = await functions[functionName](args, waId);
+      } catch (err) {
+        console.error(`Error ejecutando herramienta ${functionName}:`, err);
+        actionResponse = { error: "Falló la ejecución de la herramienta." };
+      }
 
-      const actionResponse = await functions[functionName](args, waId);
-
-      const result2 = await sendMessageWithRetry(chat, [
+      result = await sendMessageWithRetry(chat, [
         {
           functionResponse: {
             name: functionName,
@@ -260,12 +266,19 @@ export const processUserMessage = async (waId, message) => {
         },
       ]);
 
-      return result2.response.text();
+      response = result.response;
+      call = response.functionCalls() ? response.functionCalls()[0] : null;
     }
 
-    return response.text();
+    const finalText = response.text();
+
+    if (!finalText) {
+      return "He procesado tu solicitud. ¿Necesitas algo más?";
+    }
+
+    return finalText;
   } catch (error) {
     console.error("Error crítico en processUserMessage:", error);
-    return "Tuve un pequeño error técnico. ¿Podrías repetirme eso?";
+    return "Tuve un pequeño error técnico procesando tu pedido. ¿Podrías repetirlo?";
   }
 };
