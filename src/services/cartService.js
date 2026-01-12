@@ -82,7 +82,7 @@ const changeCartStatus = async (waId, status) => {
       throw new Error("Error cambiando estado");
     }
 
-    const data = await response.json();
+    const data_ = await response.json();
     return {
       success: true,
       message:
