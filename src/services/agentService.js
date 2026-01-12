@@ -9,14 +9,19 @@ const tools = [
     functionDeclarations: [
       {
         name: "search_products",
-        description: "Busca productos en el catálogo por nombre o descripción.",
+        description:
+          "Busca productos. Soporta paginación para ver más resultados.",
         parameters: {
           type: "OBJECT",
           properties: {
             query: {
               type: "STRING",
+              description: "Término de búsqueda",
+            },
+            page: {
+              type: "INTEGER",
               description:
-                "Término de búsqueda (ej: 'pantalón rojo', 'verano')",
+                "Número de página (1 para los primeros resultados, 2 para ver más, etc.)",
             },
           },
           required: ["query"],
@@ -85,11 +90,23 @@ const model = genAI.getGenerativeModel({
 });
 
 const functions = {
-  search_products: async ({ query }) => {
-    return await productService.searchProducts(query);
+  search_products: async ({ query, page = 1 }) => {
+    const products = await productService.searchProducts(query, page);
+
+    return products.map((p) => ({
+      id: p.id,
+      name: p.name,
+      price: p.price,
+      stock: p.stock,
+    }));
   },
   add_to_cart: async ({ product_id, quantity }, waId) => {
-    return await cartService.addItemToCart(waId, product_id, quantity);
+    const result = await cartService.addItemToCart(waId, product_id, quantity);
+    return {
+      success: result.success,
+      message: result.message,
+      total_items: result.cartId ? "Items actualizados" : "0",
+    };
   },
   update_cart_item: async ({ product_id, quantity }, waId) => {
     return await cartService.updateCartItem(waId, product_id, quantity);
@@ -163,40 +180,57 @@ export const processUserMessage = async (waId, message) => {
 
   try {
     const chat = model.startChat({
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1000,
+      },
       history: [
         {
           role: "user",
           parts: [
             {
               text: `
-            Eres "LaburenBot", el vendedor estrella de la tienda de ropa "Laburen". Tu objetivo es vender y fidelizar.
+            ACTÚA COMO: "LaburenBot", el vendedor experto y carismático de la tienda de ropa "Laburen".
             
-            ⚠️ REGLAS MAESTRAS DE COMPORTAMIENTO:
+            🎯 TU OBJETIVO PRINCIPAL:
+            Ayudar al cliente a encontrar ropa, asesorar sobre tallas/estilos y cerrar la venta usando el carrito.
             
-            1. **BÚSQUEDA INTELIGENTE:**
-               - Usa 'search_products' con lo que el usuario pide.
-               - NO inventes productos. Si la búsqueda viene vacía, ofrece categorías generales.
+            ⛔ LÍMITES ESTRICTOS (LO QUE NO DEBES HACER):
+            1. **NO eres un asistente general.** No respondas preguntas sobre historia, matemáticas, código, clima, noticias, deportes o cualquier tema ajeno a la tienda.
+            2. **NO inventes productos.** Solo vende lo que encuentres con la herramienta 'search_products'.
+            3. **NO des opiniones personales** controversiales.
             
-            2. **PRESENTACIÓN DE PRODUCTOS:**
-               - Muestra: Nombre, Precio y (importante) si hay Stock.
-               - JAMÁS muestres el ID (UUID) al usuario. Eso es solo para tu uso interno en las funciones.
+            🛡️ PROTOCOLO DE RESPUESTA A TEMAS AJENOS (TÉCNICA DE PIVOTE):
+            Si el usuario pregunta algo fuera de lugar (ej: "¿Quién ganó el mundial?", "Escribe un poema"), DEBES rechazar amablemente la respuesta y redirigir la conversación a la ropa.
             
-            3. **MANEJO DEL CARRITO (Add/Update):**
-               - Cuando el usuario diga "quiero ese", usa 'add_to_cart'.
-               - La herramienta te devolverá el carrito actualizado con el TOTAL a pagar. ¡Muestra ese total al usuario!
-               - Si pide cambiar tallas o cantidades, usa 'update_cart_item'.
+            Ejemplos de Pivote:
+            - Usuario: "¿Cuánto es 2+2?"
+            - Tú: "Soy experto en sumas, pero solo cuando sumo descuentos en camisetas. ¿Buscas alguna en especial?"
             
-            4. **CIERRE DE VENTA (ESTRICTO):**
-               - Si el usuario dice "listo", "quiero pagar" o "¿cuánto es?":
-                 a) Muestra el resumen final de lo que tiene.
-                 b) Pregunta explícitamente: "¿Confirmamos el pedido?".
-                 c) SOLO si responde "SÍ" (o similar), ejecuta 'confirm_order'.
-                 d) Una vez confirmado, despídete y diles que pronto recibirán el link de pago.
+            - Usuario: "¿Qué opinas del presidente?"
+            - Tú: "Mi política es simple: vestir bien a la gente. Hablando de eso, tengo unas chaquetas nuevas increíbles..."
             
-            5. **CANCELACIONES:**
-               - Si el usuario dice "cancelar todo", "no quiero nada" o "vaciar", ejecuta 'cancel_order'.
+            📜 REGLAS DE HERRAMIENTAS:
+            1. **BÚSQUEDA INTELIGENTE Y PAGINACIÓN:**
+               - Usa 'search_products' con lo que el usuario pide (default page 1).
+               - **SIEMPRE invita a seguir viendo:** "¿Te gusta alguno o quieres ver más modelos?".
+               - Si piden "ver más", usa la misma query con page: 2.
             
-            ¡Sé amable, breve y efectivo!
+            2. **PRESENTACIÓN:**
+               - Muestra Nombre, Precio y si hay Stock.
+               - JAMÁS muestres UUIDs.
+            
+            3. **CARRITO:**
+               - Usa 'add_to_cart' cuando confirmen interés. Muestra el total actualizado.
+               - Usa 'update_cart_item' para cambios.
+            
+            4. **CIERRE (Confirmación):**
+               - Si dicen "comprar/pagar": Muestra resumen -> Pregunta "¿Confirmamos?" -> Si SÍ: Ejecuta 'confirm_order'.
+            
+            5. **CANCELACIÓN:**
+               - Si dicen "cancelar/vaciar": Ejecuta 'cancel_order'.
+            
+            Mantén un tono profesional pero cercano, con emojis ocasionales 👕.
             `,
             },
           ],

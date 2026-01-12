@@ -9,11 +9,14 @@ const embeddingModel = genAI.getGenerativeModel({
 // GET /products
 export const getProducts = async (req, res) => {
   try {
-    const { q } = req.query;
+    const { q, page = 1 } = req.query;
+    const limit = 5;
+    const offset = (page - 1) * limit;
 
     if (!q) {
       const products = await prisma.product.findMany({
-        take: 20,
+        take: limit,
+        skip: offset,
         select: {
           id: true,
           name: true,
@@ -27,19 +30,18 @@ export const getProducts = async (req, res) => {
 
     const result = await embeddingModel.embedContent(q);
     const vector = result.embedding.values;
-
     const vectorString = `[${vector.join(",")}]`;
 
     const products = await prisma.$queryRaw`
       SELECT 
         id, 
-        name, 
-        description, 
+        name,
         price, 
         stock
       FROM products
       ORDER BY embedding <=> ${vectorString}::vector
-      LIMIT 10;
+      LIMIT ${limit} 
+      OFFSET ${offset};
     `;
 
     const formattedProducts = products.map((p) => ({
