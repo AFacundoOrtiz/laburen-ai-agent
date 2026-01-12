@@ -28,3 +28,21 @@ export const searchProducts = async (userQuery) => {
     return [];
   }
 };
+
+export const getProductById = async (id) => {
+  try {
+    const response = await fetch(`${API_URL}/products/${id}`);
+
+    if (!response.ok) {
+      console.warn(`API: Error ${response.status} al buscar producto ${id}`);
+      return null;
+    }
+
+    const product = await response.json();
+
+    return product;
+  } catch (error) {
+    console.error("Error de conexión con la API de productos:", error);
+    return null;
+  }
+};

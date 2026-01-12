@@ -11,6 +11,18 @@ export const functionsMap = {
       stock: p.stock,
     }));
   },
+  get_product_details: async ({ product_id }) => {
+    const product = await productService.getProductById(product_id);
+
+    if (!product) return { error: "Producto no encontrado." };
+
+    return {
+      name: product.name,
+      price: product.price,
+      description: product.description,
+      stock: product.stock,
+    };
+  },
   add_to_cart: async ({ product_id, quantity }, waId) => {
     const result = await cartService.addItemToCart(waId, product_id, quantity);
     return {

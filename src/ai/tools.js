@@ -18,6 +18,22 @@ export const toolsDefinition = [
         },
       },
       {
+        name: "get_product_details",
+        description:
+          "Obtiene la descripción completa, materiales y detalles de un producto específico usando su ID.",
+        parameters: {
+          type: "OBJECT",
+          properties: {
+            product_id: {
+              type: "STRING",
+              description:
+                "El UUID del producto del cual se quieren ver detalles.",
+            },
+          },
+          required: ["product_id"],
+        },
+      },
+      {
         name: "add_to_cart",
         description:
           "Agrega un producto al carrito ACTIVO. Devuelve carrito actualizado.",
