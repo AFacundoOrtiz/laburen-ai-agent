@@ -98,7 +98,7 @@ sequenceDiagram
     Agent-->>WA: Respuesta al usuario
 
     Note over User, WA: Fase 2: Lazy Loading (Detalles)
-    User->>WA: "¿De qué material es la azul?"
+    User->>WA: "¿Qué más puedes decirme sobre la Camisa Azul?"
     WA->>Agent: POST /webhook
     Agent->>AI: Contexto actualizado
     
@@ -107,12 +107,12 @@ sequenceDiagram
     
     Agent->>API: GET /products/:uuid_azul
     API->>DB: SELECT * FROM products WHERE id = ...
-    DB-->>API: Full Object (Description + Material)
+    DB-->>API: Full Object (Description)
     API-->>Agent: {material: "Algodón", description: "..."}
     Agent-->>AI: Tool Result (Full Details)
     
     Note right of AI: Secure Output Policy:<br/>Ocultar UUID al usuario
-    AI-->>Agent: "Es de 100% Algodón egipcio."
+    AI-->>Agent: "Tiene un diseño moderno y elegante."
     Agent-->>WA: Respuesta final
 ```
 
