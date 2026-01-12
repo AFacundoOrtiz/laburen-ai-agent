@@ -125,8 +125,20 @@ La aplicación expone una API REST organizada por recursos. El Agente de IA cons
 
 ## 🧪 Testing y Mock Mode
 
-Puedes probar el flujo completo sin conectar con Google Gemini.
-- Envía mensajes por WhatsApp que comiencen con test_ (ej: test_ buscar camisa).
+El sistema incluye un Mock Handler (`src/utils/mockHandler.js`) que permite probar el flujo de ventas (Base de datos + Carrito) sin consumir tokens de la API de Google Gemini.
+
+1. **Comandos Manuales (Prefijo `test_`)**
+Envía mensajes por WhatsApp con el prefijo `test_` para ejecutar acciones directas. Esto "bypassea" el cerebro de la IA pero utiliza los servicios reales (`functionsMap`).
+
+| Comando | Ejemplo | Acción Interna |
+| :--- | :--- | :--- |
+| **Búsqueda** | `test_ buscar pantalón` | Ejecuta `search_products` con tu término y devuelve una lista formateada. Útil para verificar conexión a DB. |
+| **Compra Rápida** | `test_ comprar` | Ejecuta `add_to_cart` con un ID de producto hardcodeado (`010c5b...`) y cantidad 1. Crea un carrito si no existe. |
+| **Confirmar** | `test_ confirmar` | Ejecuta `confirm_order`. Cambia el estado del carrito actual a `COMPLETED` y devuelve el resumen JSON. |
+| **Cancelar** | `test_ cancelar` | Ejecuta `cancel_order`. Limpia el carrito activo o lo marca como `CANCELED`. |
+| **Ayuda** | `test_ ayuda` | Muestra la lista de comandos disponibles. |
+
+**Nota:** Al usar `test_ comprar`, asegúrate de que el UUID hardcodeado en `src/utils/mockHandler.js` exista en tu base de datos local, o edita el archivo para poner un ID válido de tu `seed`.
 
 ### Scripts Locales
 
