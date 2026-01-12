@@ -1,40 +1,55 @@
 import dotenv from "dotenv";
 import path from "path";
+import prisma from "../config/prisma.js";
 import { ExcelService } from "../services/excel.service.js";
 import { ProductTransformer } from "../services/product.transformer.js";
-import { DatabaseService } from "../services/database.service.js";
 
 dotenv.config();
 
 const runSeed = async () => {
-  if (!process.env.DATABASE_URL) {
-    console.error("Error: DATABASE_URL no está definida en .env");
-    process.exit(1);
-  }
-
-  const dbService = new DatabaseService(process.env.DATABASE_URL);
-
   const FILE_PATH = path.resolve("products.xlsx");
 
   try {
-    console.log("Iniciando seeder...");
-
-    console.log(`Leyendo archivo: ${FILE_PATH}`);
+    console.log("Iniciando seeder con Prisma...");
+    console.log(`   Leyendo archivo: ${FILE_PATH}`);
     const rawRows = ExcelService.loadData(FILE_PATH);
-    console.log(`Filas leídas: ${rawRows.length}`);
+    console.log(`   Filas encontradas: ${rawRows.length}`);
 
     const products = ProductTransformer.processAndDeduplicate(rawRows);
-    console.log(`Productos a insertar: ${products.length}`);
+    console.log(`   Productos procesados (deduplicados): ${products.length}`);
 
-    console.log("Insertando en DB...");
-    await dbService.saveProducts(products);
+    await prisma.$transaction(async (tx) => {
+      console.log("Limpiando tabla de productos...");
+      await tx.$executeRawUnsafe(
+        `TRUNCATE TABLE products RESTART IDENTITY CASCADE;`
+      );
 
-    console.log("Proceso finalizado");
+      console.log("Insertando productos en DB...");
+
+      await tx.product.createMany({
+        data: products.map((p) => ({
+          id: p.uuid,
+          sku: p.sku,
+          name: p.name,
+          description: p.description,
+          price: p.price,
+          stock: p.stock,
+          isAvailable: p.isAvailable,
+          category: p.category,
+          type: p.type,
+          color: p.color,
+          size: p.size,
+        })),
+        skipDuplicates: true,
+      });
+    });
+
+    console.log("Proceso finalizado con éxito.");
   } catch (err) {
-    console.error("Error:", err);
+    console.error("Error fatal en el seeder:", err);
     process.exit(1);
   } finally {
-    await dbService.close();
+    await prisma.$disconnect();
   }
 };
 

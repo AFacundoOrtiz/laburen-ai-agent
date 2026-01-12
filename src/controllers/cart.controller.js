@@ -4,14 +4,24 @@ import prisma from "../config/prisma.js";
 export const createCart = async (req, res) => {
   try {
     const { items = [], waId } = req.body;
+
     if (!waId) {
-      return res
-        .status(400)
-        .json({ error: "Falta el waId para crear el carrito" });
+      return res.status(400).json({ error: "Falta el waId" });
     }
+
+    const existingCart = await prisma.cart.findFirst({
+      where: { waId, status: "ACTIVE" },
+      include: { items: true },
+    });
+
+    if (existingCart) {
+      return res.status(200).json(existingCart);
+    }
+
     const cart = await prisma.cart.create({
       data: {
         waId: waId,
+        status: "ACTIVE",
         items: {
           create: items.map((item) => ({
             productId: item.product_id,
@@ -24,12 +34,7 @@ export const createCart = async (req, res) => {
 
     res.status(201).json(cart);
   } catch (error) {
-    console.error("Error Prisma:", error);
-    if (error.code === "P2002") {
-      return res
-        .status(409)
-        .json({ error: "Ya existe un carrito para este usuario" });
-    }
+    console.error("Error creating cart:", error);
     res.status(500).json({ error: "Error al crear el carrito" });
   }
 };
@@ -39,14 +44,10 @@ export const getCart = async (req, res) => {
   try {
     const { waId } = req.params;
 
-    if (!waId)
-      return res
-        .status(400)
-        .json({ error: "Falta el ID del carrito o usuario" });
-
     const cart = await prisma.cart.findFirst({
       where: {
-        OR: [{ id: waId }, { waId: waId }],
+        waId: waId,
+        status: "ACTIVE",
       },
       include: {
         items: {
@@ -58,7 +59,7 @@ export const getCart = async (req, res) => {
     });
 
     if (!cart) {
-      return res.status(404).json({ error: "Carrito no encontrado" });
+      return res.status(404).json({ error: "No hay carrito activo" });
     }
 
     const total = cart.items.reduce((acc, item) => {
@@ -78,9 +79,14 @@ export const updateCart = async (req, res) => {
     const { id } = req.params;
     const { items } = req.body;
 
-    const cartExists = await prisma.cart.findUnique({ where: { id } });
+    const cartExists = await prisma.cart.findFirst({
+      where: { id, status: "ACTIVE" },
+    });
+
     if (!cartExists)
-      return res.status(404).json({ error: "Carrito no encontrado" });
+      return res
+        .status(404)
+        .json({ error: "Carrito no encontrado o ya cerrado" });
 
     if (!items || !Array.isArray(items)) {
       return res.status(400).json({ error: "Formato de items inválido" });
@@ -89,10 +95,7 @@ export const updateCart = async (req, res) => {
     for (const item of items) {
       if (item.qty <= 0) {
         await prisma.cartItem.deleteMany({
-          where: {
-            cartId: id,
-            productId: item.product_id,
-          },
+          where: { cartId: id, productId: item.product_id },
         });
       } else {
         await prisma.cartItem.upsert({
@@ -120,6 +123,44 @@ export const updateCart = async (req, res) => {
     res.json(updatedCart);
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: "Error al actualizar el carrito" });
+    res.status(500).json({ error: "Error al actualizar items" });
+  }
+};
+
+// PUT /api/cart/:waId/status
+export const updateCartStatus = async (req, res) => {
+  try {
+    const { waId } = req.params;
+    const { status } = req.body;
+
+    if (!["COMPLETED", "CANCELED"].includes(status)) {
+      return res
+        .status(400)
+        .json({ error: "Estado inválido. Use COMPLETED o CANCELED" });
+    }
+
+    const activeCart = await prisma.cart.findFirst({
+      where: { waId, status: "ACTIVE" },
+    });
+
+    if (!activeCart) {
+      return res
+        .status(404)
+        .json({ error: "No hay carrito activo para actualizar" });
+    }
+
+    const updatedCart = await prisma.cart.update({
+      where: { id: activeCart.id },
+      data: { status: status },
+    });
+
+    res.json({
+      success: true,
+      message: `Carrito marcado como ${status}`,
+      cartId: updatedCart.id,
+    });
+  } catch (error) {
+    console.error("Error updating status:", error);
+    res.status(500).json({ error: "Error al cambiar estado del carrito" });
   }
 };

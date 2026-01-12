@@ -1,3 +1,9 @@
+enum CartStatus {
+  ACTIVE
+  COMPLETED
+  CANCELED
+}
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["postgresqlExtensions"] 
@@ -10,18 +16,18 @@ datasource db {
 }
 
 model Product {
-  id          String     @id @default(uuid()) @db.Uuid
-  sku         String     @unique @db.VarChar(50)
-  name        String     @db.VarChar(255)
-  description String?    @db.Text
-  price       Decimal    @db.Decimal(10, 2)
-  stock       Int        @default(0)
-  isAvailable Boolean    @default(true) @map("is_available")
-  category    String?    @db.VarChar(100)
-  type        String?    @db.VarChar(50)
-  color       String?    @db.VarChar(50)
-  size        String?    @db.VarChar(20)
-  
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sku         String   @unique @db.VarChar(50)
+  name        String   @db.VarChar(255)
+  description String?  @db.Text
+  price       Decimal  @db.Decimal(10, 2)
+  stock       Int      @default(0)
+  isAvailable Boolean  @default(true) @map("is_available")
+  category    String?  @db.VarChar(100)
+  type        String?  @db.VarChar(50)
+  color       String?  @db.VarChar(50)
+  size        String?  @db.VarChar(20)
+  embedding   Unsupported("vector(768)")? 
 
   cartItems   CartItem[]
 
@@ -30,11 +36,18 @@ model Product {
 
 model Cart {
   id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  waId      String     @unique @map("wa_id") @db.VarChar(50)
+  waId      String     @map("wa_id") @db.VarChar(50) 
+  
+  // Lógica de historial
+  status    CartStatus @default(ACTIVE)
+  
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at")
+   
   items     CartItem[]
 
+  // Optimización para buscar "dame el carrito activo de este usuario"
+  @@index([waId, status])
   @@map("carts")
 }
 
@@ -44,8 +57,8 @@ model CartItem {
   productId String  @map("product_id") @db.Uuid
   qty       Int     @default(1)
 
-  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
-  product Product @relation(fields: [productId], references: [id])
+  cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id])
 
   @@unique([cartId, productId])
   @@map("cart_items")

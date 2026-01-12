@@ -1,23 +1,33 @@
 import { API_URL } from "../config/api.js";
 
-const activeCarts = new Map();
-
+// Agrega items. Si no existe carrito activo, la API se encarga de crearlo.
 export const addItemToCart = async (waId, productId, quantity) => {
   try {
-    const currentCartId = activeCarts.get(waId);
+    let currentCartId = null;
+
+    try {
+      const checkResponse = await fetch(`${API_URL}/cart/${waId}`);
+      if (checkResponse.ok) {
+        const cart = await checkResponse.json();
+        currentCartId = cart.id;
+      }
+    } catch (e) {
+      console.warn("No se pudo verificar carrito, intentando crear uno nuevo.");
+    }
 
     const method = currentCartId ? "PATCH" : "POST";
-
     const endpoint = currentCartId
       ? `${API_URL}/cart/${currentCartId}`
       : `${API_URL}/cart`;
 
-    console.log(`Ejecutando ${method} en ${endpoint}`);
+    console.log(`🛒 Ejecutando ${method} en ${endpoint}`);
 
-    const payload = {
-      waId: waId,
-      items: [{ product_id: productId, qty: quantity }],
-    };
+    let payload;
+    if (method === "POST") {
+      payload = { waId, items: [{ product_id: productId, qty: quantity }] };
+    } else {
+      payload = { items: [{ product_id: productId, qty: quantity }] };
+    }
 
     const response = await fetch(endpoint, {
       method: method,
@@ -27,14 +37,10 @@ export const addItemToCart = async (waId, productId, quantity) => {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Error API ${method}: ${errorData.error || response.statusText}`
-      );
+      throw new Error(`Error API: ${errorData.error || response.statusText}`);
     }
 
     const cartData = await response.json();
-
-    activeCarts.set(waId, cartData.id);
 
     return {
       success: true,
@@ -44,56 +50,50 @@ export const addItemToCart = async (waId, productId, quantity) => {
         : "Carrito creado exitosamente",
     };
   } catch (error) {
-    console.error("Error en addItemToCart (API):", error);
+    console.error("Error en addItemToCart:", error);
     return { success: false, error: "No pude agregar el producto." };
   }
 };
 
+// Modifica cantidad de un item existente
 export const updateCartItem = async (waId, productId, quantity) => {
+  return await addItemToCart(waId, productId, quantity);
+};
+
+// Cierra la venta (COMPLETED)
+export const confirmOrder = async (waId) => {
+  return await changeCartStatus(waId, "COMPLETED");
+};
+
+// Cancela la venta (CANCELED)
+export const clearCart = async (waId) => {
+  return await changeCartStatus(waId, "CANCELED");
+};
+
+const changeCartStatus = async (waId, status) => {
   try {
-    const currentCartId = activeCarts.get(waId);
+    console.log(`🔄 Cambiando estado de carrito ${waId} a ${status}`);
 
-    if (!currentCartId) {
-      return {
-        success: false,
-        error: "No tienes un carrito activo para editar.",
-      };
-    }
-
-    const endpoint = `${API_URL}/cart/${currentCartId}`;
-    console.log(`Ejecutando PATCH en ${endpoint}`);
-
-    const payload = {
-      items: [{ product_id: productId, qty: quantity }],
-    };
-
-    const response = await fetch(endpoint, {
-      method: "PATCH",
+    const response = await fetch(`${API_URL}/cart/${waId}/status`, {
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ status }),
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(
-        `Error API PATCH: ${errorData.error || response.statusText}`
-      );
+      if (response.status === 404)
+        return { success: false, error: "No tienes un carrito activo." };
+      throw new Error("Error cambiando estado");
     }
 
-    return { success: true, message: "Cantidad actualizada." };
+    const data = await response.json();
+    return {
+      success: true,
+      message:
+        status === "COMPLETED" ? "¡Compra confirmada!" : "Carrito cancelado.",
+    };
   } catch (error) {
-    console.error("Error en updateCartItem (API):", error);
-    return { success: false, error: "Error al actualizar el carrito." };
+    console.error("Error changing status:", error);
+    return { success: false, error: "Error procesando la solicitud." };
   }
-};
-
-export const getCartInfo = async (waId) => {
-  const currentCartId = activeCarts.get(waId);
-  if (!currentCartId) return "El carrito está vacío.";
-  return `Carrito activo ID: ${currentCartId}`;
-};
-
-export const clearCart = async (waId) => {
-  activeCarts.delete(waId);
-  return { success: true, message: "Carrito cerrado." };
 };

@@ -25,13 +25,13 @@ const tools = [
       {
         name: "add_to_cart",
         description:
-          "Agrega un producto al carrito de compras. Si el carrito no existe, lo crea.",
+          "Agrega un producto al carrito ACTIVO. Devuelve el carrito actualizado con el total.",
         parameters: {
           type: "OBJECT",
           properties: {
             product_id: {
               type: "STRING",
-              description: "ID del producto a agregar",
+              description: "ID del producto a agregar (UUID)",
             },
             quantity: { type: "INTEGER", description: "Cantidad a agregar" },
           },
@@ -41,7 +41,7 @@ const tools = [
       {
         name: "update_cart_item",
         description:
-          "Actualiza la cantidad de un producto que YA está en el carrito.",
+          "Modifica la cantidad de un producto en el carrito activo o lo elimina (cantidad 0).",
         parameters: {
           type: "OBJECT",
           properties: {
@@ -51,15 +51,25 @@ const tools = [
             },
             quantity: {
               type: "INTEGER",
-              description: "Nueva cantidad total (ej: 0 para borrar)",
+              description: "Nueva cantidad total (0 para borrar)",
             },
           },
           required: ["product_id", "quantity"],
         },
       },
       {
-        name: "clear_cart",
-        description: "Vacía el carrito o cierra la sesión de compra actual.",
+        name: "confirm_order",
+        description:
+          "CIERRA la venta. Cambia el estado del carrito a COMPLETED. Usar SOLO tras confirmación explícita del usuario.",
+        parameters: {
+          type: "OBJECT",
+          properties: {},
+        },
+      },
+      {
+        name: "cancel_order",
+        description:
+          "CANCELA el pedido actual y cambia el estado a CANCELED. Usar si el usuario se arrepiente de todo.",
         parameters: {
           type: "OBJECT",
           properties: {},
@@ -84,7 +94,10 @@ const functions = {
   update_cart_item: async ({ product_id, quantity }, waId) => {
     return await cartService.updateCartItem(waId, product_id, quantity);
   },
-  clear_cart: async ({}, waId) => {
+  confirm_order: async ({}, waId) => {
+    return await cartService.confirmOrder(waId);
+  },
+  cancel_order: async ({}, waId) => {
     return await cartService.clearCart(waId);
   },
 };
@@ -119,56 +132,33 @@ export const processUserMessage = async (waId, message) => {
 
     if (message.toLowerCase().includes("buscar")) {
       const queryReal = message.replace(/test_|buscar/gi, "").trim();
-
       const queryFinal = queryReal || "pantalón";
-
-      console.log(`Mock ejecutando búsqueda real con: "${queryFinal}"`);
-
       const actionResponse = await functions.search_products({
         query: queryFinal,
       });
-
       const topItems = actionResponse.slice(0, 5);
-
       const listText = topItems
         .map((p) => `• ${p.name} ($${p.price})`)
         .join("\n");
-
-      return (
-        `[MOCK] Busqué: "${queryFinal}"\n` +
-        `Encontrados: ${actionResponse.length}\n` +
-        `Top 5:\n${listText}\n\n` +
-        `(JSON completo oculto por límite de caracteres)`
-      );
+      return `[MOCK] Busqué: "${queryFinal}"\nResultados: ${actionResponse.length}\n${listText}`;
     }
-
     if (message.toLowerCase().includes("comprar")) {
-      const mockUuid = "0575a5b4-3775-4c8d-b8a0-b99796f42519";
-
-      console.log(`Mock intentando agregar al carrito...`);
+      const mockUuid = "010c5b13-a4fa-4ec6-83af-6371dba8aab5";
       const actionResponse = await functions.add_to_cart(
         { product_id: mockUuid, quantity: 1 },
         waId
       );
-      return `[RESPUESTA MOCK] Resultado de compra: ${JSON.stringify(
-        actionResponse,
-        null,
-        2
-      )}`;
+      return `[MOCK Compra]: ${JSON.stringify(actionResponse, null, 2)}`;
     }
-
+    if (message.toLowerCase().includes("confirmar")) {
+      const actionResponse = await functions.confirm_order({}, waId);
+      return `[MOCK Confirmar]: ${JSON.stringify(actionResponse, null, 2)}`;
+    }
     if (message.toLowerCase().includes("vaciar")) {
-      console.log(`Mock intentando vaciar el carrito...`);
-
-      const actionResponse = await functions.clear_cart({}, waId);
-
-      return (
-        `[RESPUESTA MOCK] Operación de limpieza ejecutada.\n` +
-        `Resultado: ${JSON.stringify(actionResponse, null, 2)}`
-      );
+      const actionResponse = await functions.cancel_order({}, waId);
+      return `[MOCK Cancelar]: ${JSON.stringify(actionResponse, null, 2)}`;
     }
-
-    return "[RESPUESTA MOCK] Comandos disponibles: 'test_ buscar [producto]', 'test_ comprar' o 'test_ vaciar'";
+    return "[MOCK] Comandos: 'test_ buscar', 'test_ comprar', 'test_ confirmar', 'test_ vaciar'";
   }
 
   try {
@@ -179,26 +169,34 @@ export const processUserMessage = async (waId, message) => {
           parts: [
             {
               text: `
-            Eres el vendedor virtual de "Laburen", una tienda de ropa moderna. Tu objetivo es cerrar ventas.
+            Eres "LaburenBot", el vendedor estrella de la tienda de ropa "Laburen". Tu objetivo es vender y fidelizar.
             
-            REGLAS CRÍTICAS PARA USAR HERRAMIENTAS:
+            ⚠️ REGLAS MAESTRAS DE COMPORTAMIENTO:
             
-            1. **CÓMO BUSCAR (search_products):**
-               - Usa la herramienta search_products con la frase principal que dijo el usuario.
-               - Ej: Si dice "quiero algo para salir de noche", busca exactamente "algo para salir de noche".
-               - El sistema es inteligente y entenderá el contexto. No necesitas adivinar palabras clave.
+            1. **BÚSQUEDA INTELIGENTE:**
+               - Usa 'search_products' con lo que el usuario pide.
+               - NO inventes productos. Si la búsqueda viene vacía, ofrece categorías generales.
             
-            2. **PRESENTACIÓN:**
-               - Muestra los productos con su precio (formato $10.00).
-               - JAMÁS muestres los UUIDs (ej: 550e8400-e29b...).
-               - Usa negritas (*) para resaltar nombres y precios.
+            2. **PRESENTACIÓN DE PRODUCTOS:**
+               - Muestra: Nombre, Precio y (importante) si hay Stock.
+               - JAMÁS muestres el ID (UUID) al usuario. Eso es solo para tu uso interno en las funciones.
             
-            3. **VENTA:**
-               - Si el usuario muestra interés claro, usa 'add_to_cart'.
-               - Si pide cambios, usa 'update_cart_item'.
+            3. **MANEJO DEL CARRITO (Add/Update):**
+               - Cuando el usuario diga "quiero ese", usa 'add_to_cart'.
+               - La herramienta te devolverá el carrito actualizado con el TOTAL a pagar. ¡Muestra ese total al usuario!
+               - Si pide cambiar tallas o cantidades, usa 'update_cart_item'.
             
-            4. **CIERRE:**
-               - Si dice "gracias" o confirma la compra, despídete amablemente confirmando que el pedido está listo.
+            4. **CIERRE DE VENTA (ESTRICTO):**
+               - Si el usuario dice "listo", "quiero pagar" o "¿cuánto es?":
+                 a) Muestra el resumen final de lo que tiene.
+                 b) Pregunta explícitamente: "¿Confirmamos el pedido?".
+                 c) SOLO si responde "SÍ" (o similar), ejecuta 'confirm_order'.
+                 d) Una vez confirmado, despídete y diles que pronto recibirán el link de pago.
+            
+            5. **CANCELACIONES:**
+               - Si el usuario dice "cancelar todo", "no quiero nada" o "vaciar", ejecuta 'cancel_order'.
+            
+            ¡Sé amable, breve y efectivo!
             `,
             },
           ],
@@ -215,7 +213,7 @@ export const processUserMessage = async (waId, message) => {
       const functionName = call.name;
       const args = call.args;
 
-      console.log(`IA intenta ejecutar: ${functionName}`, args);
+      console.log(`IA ejecuta: ${functionName}`, args);
 
       const actionResponse = await functions[functionName](args, waId);
 
@@ -234,6 +232,6 @@ export const processUserMessage = async (waId, message) => {
     return response.text();
   } catch (error) {
     console.error("Error crítico en processUserMessage:", error);
-    return "Lo siento, estoy recibiendo muchas consultas en este momento. ¿Podrías intentar de nuevo en unos segundos?";
+    return "Tuve un pequeño error técnico. ¿Podrías repetirme eso?";
   }
 };
