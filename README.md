@@ -136,7 +136,6 @@ Envía mensajes por WhatsApp con el prefijo `test_` para ejecutar acciones direc
 | **Compra Rápida** | `test_ comprar` | Ejecuta `add_to_cart` con un ID de producto hardcodeado (`010c5b...`) y cantidad 1. Crea un carrito si no existe. |
 | **Confirmar** | `test_ confirmar` | Ejecuta `confirm_order`. Cambia el estado del carrito actual a `COMPLETED` y devuelve el resumen JSON. |
 | **Cancelar** | `test_ cancelar` | Ejecuta `cancel_order`. Limpia el carrito activo o lo marca como `CANCELED`. |
-| **Ayuda** | `test_ ayuda` | Muestra la lista de comandos disponibles. |
 
 **Nota:** Al usar `test_ comprar`, asegúrate de que el UUID hardcodeado en `src/utils/mockHandler.js` exista en tu base de datos local, o edita el archivo para poner un ID válido de tu `seed`.
 
