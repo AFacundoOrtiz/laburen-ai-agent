@@ -37,16 +37,12 @@ model Product {
 model Cart {
   id        String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   waId      String     @map("wa_id") @db.VarChar(50) 
-  
-  // Lógica de historial
   status    CartStatus @default(ACTIVE)
-  
   createdAt DateTime   @default(now()) @map("created_at")
   updatedAt DateTime   @default(now()) @updatedAt @map("updated_at")
-   
+  
   items     CartItem[]
 
-  // Optimización para buscar "dame el carrito activo de este usuario"
   @@index([waId, status])
   @@map("carts")
 }

@@ -1,6 +1,5 @@
 import { API_URL } from "../config/api.js";
 
-// Agrega items. Si no existe carrito activo, se crea uno.
 export const addItemToCart = async (waId, productId, quantity) => {
   try {
     let currentCartId = null;
@@ -55,17 +54,14 @@ export const addItemToCart = async (waId, productId, quantity) => {
   }
 };
 
-// Modifica cantidad de un item existente
 export const updateCartItem = async (waId, productId, quantity) => {
   return await addItemToCart(waId, productId, quantity);
 };
 
-// Cierra la venta (COMPLETED)
 export const confirmOrder = async (waId) => {
   return await changeCartStatus(waId, "COMPLETED");
 };
 
-// Cancela la venta (CANCELED)
 export const clearCart = async (waId) => {
   return await changeCartStatus(waId, "CANCELED");
 };
