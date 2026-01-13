@@ -67,7 +67,7 @@ const executeToolLoop = async (chat, initialResponse, waId) => {
   return response.text();
 };
 
-export const processUserMessage = async (waId, message) => {
+export const processUserMessage = async (waId, message, chatHistory = []) => {
   try {
     const mockRes = await handleMockMode(waId, message);
     if (mockRes) return mockRes;
