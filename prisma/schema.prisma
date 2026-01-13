@@ -59,3 +59,13 @@ model CartItem {
   @@unique([cartId, productId])
   @@map("cart_items")
 }
+
+model Message {
+  id        String   @id @default(uuid())
+  waId      String 
+  content   String
+  role      String
+  createdAt DateTime @default(now())
+  
+  @@index([waId])
+}

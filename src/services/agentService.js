@@ -72,10 +72,18 @@ export const processUserMessage = async (waId, message) => {
     const mockRes = await handleMockMode(waId, message);
     if (mockRes) return mockRes;
 
+    const recentHistory = chatHistory.slice(-40).map((msg) => ({
+      role: msg.role === "assistant" ? "model" : "user",
+      parts: [{ text: msg.content }],
+    }));
+
     const model = getGeminiModel(GEN_AI_MODEL_NAME, toolsDefinition);
     const chat = model.startChat({
-      generationConfig: { temperature: 0.3, maxOutputTokens: 1000 },
-      history: [{ role: "user", parts: [{ text: SYSTEM_PROMPT }] }],
+      generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
+      history: [
+        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+        ...recentHistory,
+      ],
     });
 
     const result = await sendMessageWithRetry(chat, message);

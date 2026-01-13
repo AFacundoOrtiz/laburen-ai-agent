@@ -2,6 +2,7 @@ import { processUserMessage } from "../services/agentService.js";
 import { smartSplit } from "../utils/textUtils.js";
 import client from "../config/twilio.js";
 import dotenv from "dotenv";
+import prisma from "../config/prisma.js";
 
 dotenv.config();
 
@@ -37,7 +38,33 @@ export const receiveMessage = async (req, res) => {
       return res.status(200).send("OK");
     }
 
-    const responseText = await processUserMessage(waId, incomingMessage);
+    const history = await prisma.message.findMany({
+      where: { waId: waId },
+      orderBy: { createdAt: "asc" },
+      take: 30,
+    });
+
+    const responseText = await processUserMessage(
+      waId,
+      incomingMessage,
+      history
+    );
+
+    await prisma.message.create({
+      data: {
+        waId: waId,
+        content: incomingMessage,
+        role: "user",
+      },
+    });
+
+    await prisma.message.create({
+      data: {
+        waId: waId,
+        content: responseText,
+        role: "assistant",
+      },
+    });
 
     const messagesToSend = smartSplit(responseText, 1500);
 
