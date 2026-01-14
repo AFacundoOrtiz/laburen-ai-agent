@@ -65,6 +65,7 @@ model Message {
   waId      String 
   content   String
   role      String
+  metadata  Json?
   createdAt DateTime @default(now())
   
   @@index([waId])

@@ -36,41 +36,45 @@ const executeToolLoop = async (chat, initialResponse, waId) => {
   let functionCalls = response.functionCalls();
   let loops = 0;
 
+  let toolExecutions = [];
+
   while (functionCalls && functionCalls.length > 0 && loops < MAX_TOOL_LOOPS) {
     loops++;
+    const call = functionCalls[0];
+    const { name, args } = call;
+    console.log(`🤖 IA Acción ${loops}: ${name}`, args);
 
-    const functionResponses = await Promise.all(
-      functionCalls.map(async (call) => {
-        const { name, args } = call;
-        console.log(`> Ejecutando: ${name}`, args);
+    let actionResponse;
+    try {
+      if (!functionsMap[name])
+        throw new Error(`Herramienta desconocida: ${name}`);
 
-        let result;
-        try {
-          if (!functionsMap[name]) {
-            throw new Error(`Herramienta no implementada: ${name}`);
-          }
-          result = await functionsMap[name](args, waId);
-        } catch (err) {
-          console.error(`Error en ${name}:`, err);
-          result = { error: "Error técnico al procesar esta acción." };
-        }
+      actionResponse = await functionsMap[name](args, waId);
 
-        return {
-          functionResponse: {
-            name: name,
-            response: { result: result },
-          },
-        };
-      })
-    );
+      toolExecutions.push({
+        role: "function",
+        name: name,
+        response: actionResponse,
+      });
+    } catch (err) {
+      console.error(`Error en tool ${name}:`, err);
+      actionResponse = { error: "Fallo técnico en herramienta." };
+    }
 
-    const result = await sendMessageWithRetry(chat, functionResponses);
+    const result = await sendMessageWithRetry(chat, [
+      {
+        functionResponse: { name, response: { result: actionResponse } },
+      },
+    ]);
 
     response = result.response;
     functionCalls = response.functionCalls();
   }
 
-  return response.text();
+  return {
+    text: response.text(),
+    toolExecutions,
+  };
 };
 
 export const processUserMessage = async (waId, message, chatHistory = []) => {

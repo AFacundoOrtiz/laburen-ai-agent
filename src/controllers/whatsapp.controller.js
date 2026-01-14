@@ -54,11 +54,27 @@ export const receiveMessage = async (req, res) => {
       take: 30,
     });
 
-    const responseText = await processUserMessage(
+    const { text: responseText, toolExecutions } = await processUserMessage(
       waId,
       incomingMessage,
       history
     );
+
+    if (toolExecutions && toolExecutions.length > 0) {
+      for (const toolExec of toolExecutions) {
+        await prisma.message.create({
+          data: {
+            waId: waId,
+            role: "function",
+            content: `Resultado de ${toolExec.name}`,
+            metadata: {
+              name: toolExec.name,
+              response: toolExec.response,
+            },
+          },
+        });
+      }
+    }
 
     await prisma.message.create({
       data: {
@@ -72,11 +88,15 @@ export const receiveMessage = async (req, res) => {
 
     for (const chunk of messagesToSend) {
       if (chunk && chunk.trim().length > 0) {
-        await client.messages.create({
-          body: chunk,
-          from: process.env.TWILIO_WHATSAPP_NUMBER,
-          to: waId,
-        });
+        try {
+          await client.messages.create({
+            body: chunk,
+            from: process.env.TWILIO_WHATSAPP_NUMBER,
+            to: waId,
+          });
+        } catch (twilioError) {
+          console.log("Fallo envío Twilio:", chunk);
+        }
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
