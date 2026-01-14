@@ -50,7 +50,7 @@ export const receiveMessage = async (req, res) => {
         waId: waId,
         id: { not: savedUserMsg.id },
       },
-      orderBy: { createdAt: "asc" },
+      orderBy: { createdAt: "desc" },
       take: 30,
     });
 
@@ -111,7 +111,7 @@ export const receiveMessage = async (req, res) => {
     if (waId) {
       try {
         await client.messages.create({
-          body: "Lo siento, tuve un error interno momentáneo. Por favor intenta de nuevo en unos segundos. 🤖🔧",
+          body: "Lo siento, tuve un error interno momentáneo. Por favor intenta de nuevo en unos segundos.",
           from: process.env.TWILIO_WHATSAPP_NUMBER,
           to: waId,
         });

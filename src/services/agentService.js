@@ -98,14 +98,26 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
           };
         }
 
-        if (msg.role === "function" && msg.metadata) {
+        if (msg.role === "function") {
+          const meta =
+            typeof msg.metadata === "string"
+              ? JSON.parse(msg.metadata)
+              : msg.metadata;
+
+          if (!meta || !meta.name || !meta.response) {
+            console.warn(
+              `Mensaje 'function' corrupto ignorado (ID: ${msg.id})`
+            );
+            return null;
+          }
+
           return {
             role: "function",
             parts: [
               {
                 functionResponse: {
-                  name: msg.metadata.name,
-                  response: { result: msg.metadata.response },
+                  name: meta.name,
+                  response: { result: meta.response },
                 },
               },
             ],
@@ -125,6 +137,16 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
     );
 
     const model = getGeminiModel(GEN_AI_MODEL_NAME, toolsDefinition);
+
+    const functionMessages = formattedHistory.filter(
+      (m) => m.role === "function"
+    );
+    if (functionMessages.length > 0) {
+      console.log("TOOLS RECUPERADAS DE DB:");
+      console.dir(functionMessages, { depth: null, colors: true });
+    } else {
+      console.log("NO se encontraron tools en el historial (¿Se guardaron?)");
+    }
 
     const chat = model.startChat({
       generationConfig: { temperature: 0.5, maxOutputTokens: 1000 },
