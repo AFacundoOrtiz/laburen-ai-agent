@@ -8,5 +8,6 @@ export const getGeminiModel = (modelName = "gemini-2.5-flash", tools) => {
   return genAI.getGenerativeModel({
     model: modelName,
     tools: tools,
+    systemInstruction: SYSTEM_PROMPT,
   });
 };

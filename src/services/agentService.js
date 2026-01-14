@@ -33,37 +33,43 @@ const sendMessageWithRetry = async (
 
 const executeToolLoop = async (chat, initialResponse, waId) => {
   let response = initialResponse;
-  let functionCall = response.functionCalls()
-    ? response.functionCalls()[0]
-    : null;
+  let functionCalls = response.functionCalls();
   let loops = 0;
 
-  while (functionCall && loops < MAX_TOOL_LOOPS) {
-    const { name, args } = functionCall;
+  while (functionCalls && functionCalls.length > 0 && loops < MAX_TOOL_LOOPS) {
     loops++;
-    console.log(`IA Acción ${loops}: ${name}`, args);
 
-    let actionResponse;
-    try {
-      if (!functionsMap[name])
-        throw new Error(`Herramienta desconocida: ${name}`);
-      actionResponse = await functionsMap[name](args, waId);
-    } catch (err) {
-      console.error(`Error en tool ${name}:`, err);
-      actionResponse = { error: "Fallo técnico en herramienta." };
-    }
+    const functionResponses = await Promise.all(
+      functionCalls.map(async (call) => {
+        const { name, args } = call;
+        console.log(`> Ejecutando: ${name}`, args);
 
-    const result = await sendMessageWithRetry(chat, [
-      {
-        functionResponse: { name, response: { result: actionResponse } },
-      },
-    ]);
+        let result;
+        try {
+          if (!functionsMap[name]) {
+            throw new Error(`Herramienta no implementada: ${name}`);
+          }
+          result = await functionsMap[name](args, waId);
+        } catch (err) {
+          console.error(`Error en ${name}:`, err);
+          result = { error: "Error técnico al procesar esta acción." };
+        }
+
+        return {
+          functionResponse: {
+            name: name,
+            response: { result: result },
+          },
+        };
+      })
+    );
+
+    const result = await sendMessageWithRetry(chat, functionResponses);
 
     response = result.response;
-    functionCall = response.functionCalls()
-      ? response.functionCalls()[0]
-      : null;
+    functionCalls = response.functionCalls();
   }
+
   return response.text();
 };
 
@@ -77,16 +83,19 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
       parts: [{ text: msg.content }],
     }));
 
-    const model = getGeminiModel(GEN_AI_MODEL_NAME, toolsDefinition);
+    const model = getGeminiModel(
+      GEN_AI_MODEL_NAME,
+      toolsDefinition,
+      SYSTEM_PROMPT
+    );
+
     const chat = model.startChat({
       generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
-      history: [
-        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-        ...recentHistory,
-      ],
+      history: recentHistory,
     });
 
     const result = await sendMessageWithRetry(chat, message);
+
     const finalText = await executeToolLoop(chat, result.response, waId);
 
     return finalText || "Procesado, pero sin respuesta de texto.";
