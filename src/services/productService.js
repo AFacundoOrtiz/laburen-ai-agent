@@ -1,10 +1,14 @@
 import { API_URL } from "../config/api.js";
 
-export const searchProducts = async (userQuery) => {
+export const searchProducts = async (query, page = 1, sort = "relevance") => {
   try {
-    const response = await fetch(
-      `${API_URL}/products?q=${encodeURIComponent(userQuery)}`
-    );
+    const params = new URLSearchParams();
+
+    if (query) params.append("q", query);
+    params.append("page", page.toString());
+    params.append("sort", sort);
+
+    const response = await fetch(`${API_URL}/products?${params.toString()}`);
 
     if (!response.ok) {
       throw new Error(
@@ -39,7 +43,6 @@ export const getProductById = async (id) => {
     }
 
     const product = await response.json();
-
     return product;
   } catch (error) {
     console.error("Error de conexión con la API de productos:", error);

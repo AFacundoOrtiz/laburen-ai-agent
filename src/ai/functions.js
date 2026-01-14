@@ -2,13 +2,15 @@ import * as productService from "../services/productService.js";
 import * as cartService from "../services/cartService.js";
 
 export const functionsMap = {
-  search_products: async ({ query, page = 1 }) => {
-    const products = await productService.searchProducts(query, page);
+  search_products: async ({ query, page = 1, sort = "relevance" }) => {
+    const products = await productService.searchProducts(query, page, sort);
+
     return products.map((p) => ({
       id: p.id,
       name: p.name,
       price: p.price,
       stock: p.stock,
+      description: product.description,
     }));
   },
   get_product_details: async ({ product_id }) => {

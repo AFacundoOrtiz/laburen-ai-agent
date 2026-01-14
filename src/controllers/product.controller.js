@@ -9,14 +9,25 @@ const embeddingModel = genAI.getGenerativeModel({
 // GET /products
 export const getProducts = async (req, res) => {
   try {
-    const { q, page = 1 } = req.query;
+    const { q, page = 1, sort = "relevance" } = req.query;
     const limit = 5;
     const offset = (page - 1) * limit;
 
-    if (!q) {
+    if (sort === "price_asc") {
+      const whereClause = {};
+
+      if (q && q.trim() !== "") {
+        whereClause.OR = [
+          { name: { contains: q, mode: "insensitive" } },
+          { description: { contains: q, mode: "insensitive" } },
+        ];
+      }
+
       const products = await prisma.product.findMany({
+        where: whereClause,
         take: limit,
         skip: offset,
+        orderBy: { price: "asc" },
         select: {
           id: true,
           name: true,
@@ -25,31 +36,59 @@ export const getProducts = async (req, res) => {
           description: true,
         },
       });
-      return res.json(products);
+
+      const formattedProducts = products.map((p) => ({
+        ...p,
+        price: Number(p.price),
+      }));
+
+      return res.json(formattedProducts);
     }
 
-    const result = await embeddingModel.embedContent(q);
-    const vector = result.embedding.values;
-    const vectorString = `[${vector.join(",")}]`;
+    if (q) {
+      const result = await embeddingModel.embedContent(q);
+      const vector = result.embedding.values;
+      const vectorString = `[${vector.join(",")}]`;
 
-    const products = await prisma.$queryRaw`
-      SELECT 
-        id, 
-        name,
-        price, 
-        stock
-      FROM products
-      ORDER BY embedding <=> ${vectorString}::vector
-      LIMIT ${limit} 
-      OFFSET ${offset};
-    `;
+      const products = await prisma.$queryRaw`
+        SELECT 
+          id, 
+          name,
+          price, 
+          stock,
+          description
+        FROM products
+        ORDER BY embedding <=> ${vectorString}::vector
+        LIMIT ${limit} 
+        OFFSET ${offset};
+      `;
 
-    const formattedProducts = products.map((p) => ({
+      const formattedProducts = products.map((p) => ({
+        ...p,
+        price: Number(p.price),
+      }));
+
+      return res.json(formattedProducts);
+    }
+
+    const products = await prisma.product.findMany({
+      take: limit,
+      skip: offset,
+      select: {
+        id: true,
+        name: true,
+        price: true,
+        stock: true,
+        description: true,
+      },
+    });
+
+    const formattedSimple = products.map((p) => ({
       ...p,
       price: Number(p.price),
     }));
 
-    res.json(formattedProducts);
+    return res.json(formattedSimple);
   } catch (error) {
     console.error("Error en getProducts:", error);
     res.status(500).json({ error: "Error al buscar productos" });
