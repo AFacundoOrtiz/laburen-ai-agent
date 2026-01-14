@@ -1,4 +1,5 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import { SYSTEM_PROMPT } from "../ai/prompts";
 import dotenv from "dotenv";
 dotenv.config();
 
