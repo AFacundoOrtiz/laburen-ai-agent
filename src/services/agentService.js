@@ -80,39 +80,54 @@ const executeToolLoop = async (chat, initialResponse, waId) => {
 export const processUserMessage = async (waId, message, chatHistory = []) => {
   try {
     const mockRes = await handleMockMode(waId, message);
-    if (mockRes) return mockRes;
+    if (mockRes) return { text: mockRes, toolExecutions: [] };
 
-    const recentHistory = chatHistory
-      .slice(-40)
-      .filter((msg) => msg.content && msg.content.trim() !== "")
-      .map((msg) => ({
+    const recentHistory = chatHistory.slice(-40).map((msg) => {
+      if (msg.role === "function" && msg.metadata) {
+        return {
+          role: "function",
+          parts: [
+            {
+              functionResponse: {
+                name: msg.metadata.name,
+                response: { result: msg.metadata.response },
+              },
+            },
+          ],
+        };
+      }
+      return {
         role: msg.role === "assistant" ? "model" : "user",
         parts: [{ text: msg.content }],
-      }));
+      };
+    });
 
-    console.log("--- ULTIMO MENSAJE EN HISTORIAL ENVIADO A GEMINI ---");
-    console.log(
-      JSON.stringify(recentHistory[recentHistory.length - 1], null, 2)
-    );
-
-    const model = getGeminiModel(
-      GEN_AI_MODEL_NAME,
-      toolsDefinition,
-      SYSTEM_PROMPT
-    );
-
+    const model = getGeminiModel(GEN_AI_MODEL_NAME, toolsDefinition);
     const chat = model.startChat({
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1000 },
-      history: recentHistory,
+      generationConfig: { temperature: 0.5, maxOutputTokens: 1000 },
+      history: [
+        { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
+        ...recentHistory,
+      ],
     });
 
     const result = await sendMessageWithRetry(chat, message);
 
-    const finalText = await executeToolLoop(chat, result.response, waId);
+    const { text, toolExecutions } = await executeToolLoop(
+      chat,
+      result.response,
+      waId
+    );
 
-    return finalText || "Procesado, pero sin respuesta de texto.";
+    return {
+      text: text || "Procesado, pero sin respuesta de texto.",
+      toolExecutions,
+    };
   } catch (error) {
     console.error("Error en AgentService:", error);
-    return "Tuve un error técnico. Por favor intenta de nuevo.";
+    return {
+      text: "Tuve un error técnico. Por favor intenta de nuevo.",
+      toolExecutions: [],
+    };
   }
 };

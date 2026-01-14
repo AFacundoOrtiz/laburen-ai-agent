@@ -15,80 +15,64 @@ export const getProducts = async (req, res) => {
 
     if (sort === "price_asc") {
       const whereClause = {};
-
       if (q && q.trim() !== "") {
         whereClause.OR = [
           { name: { contains: q, mode: "insensitive" } },
           { description: { contains: q, mode: "insensitive" } },
         ];
       }
-
       const products = await prisma.product.findMany({
         where: whereClause,
         take: limit,
         skip: offset,
         orderBy: { price: "asc" },
-        select: {
-          id: true,
-          name: true,
-          price: true,
-          stock: true,
-          description: true,
-        },
       });
-
-      const formattedProducts = products.map((p) => ({
-        ...p,
-        price: Number(p.price),
-      }));
-
-      return res.json(formattedProducts);
+      return res.json(products.map((p) => ({ ...p, price: Number(p.price) })));
     }
 
     if (q) {
+      console.log(`🔎 Buscando híbrido: "${q}"`);
+
+      const textProducts = await prisma.product.findMany({
+        where: {
+          OR: [{ name: { contains: q, mode: "insensitive" } }],
+        },
+        take: limit,
+        skip: offset,
+      });
+
+      if (textProducts.length > 0) {
+        console.log("Match exacto encontrado. Omitiendo vectores.");
+        return res.json(
+          textProducts.map((p) => ({ ...p, price: Number(p.price) }))
+        );
+      }
+
+      console.log("Sin match exacto. Usando Búsqueda Vectorial...");
+
       const result = await embeddingModel.embedContent(q);
       const vector = result.embedding.values;
       const vectorString = `[${vector.join(",")}]`;
 
-      const products = await prisma.$queryRaw`
-        SELECT 
-          id, 
-          name,
-          price, 
-          stock,
-          description
+      const vectorProducts = await prisma.$queryRaw`
+        SELECT id, name, price, stock, description
         FROM products
         ORDER BY embedding <=> ${vectorString}::vector
         LIMIT ${limit} 
         OFFSET ${offset};
       `;
 
-      const formattedProducts = products.map((p) => ({
-        ...p,
-        price: Number(p.price),
-      }));
-
-      return res.json(formattedProducts);
+      return res.json(
+        vectorProducts.map((p) => ({ ...p, price: Number(p.price) }))
+      );
     }
 
     const products = await prisma.product.findMany({
       take: limit,
       skip: offset,
-      select: {
-        id: true,
-        name: true,
-        price: true,
-        stock: true,
-        description: true,
-      },
     });
 
-    const formattedSimple = products.map((p) => ({
-      ...p,
-      price: Number(p.price),
-    }));
-
-    return res.json(formattedSimple);
+    return res.json(products.map((p) => ({ ...p, price: Number(p.price) })));
   } catch (error) {
     console.error("Error en getProducts:", error);
     res.status(500).json({ error: "Error al buscar productos" });

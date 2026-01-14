@@ -45,7 +45,7 @@ export const receiveMessage = async (req, res) => {
       },
     });
 
-    const history = await prisma.message.findMany({
+    const rawHistory = await prisma.message.findMany({
       where: {
         waId: waId,
         id: { not: savedUserMsg.id },
@@ -53,6 +53,8 @@ export const receiveMessage = async (req, res) => {
       orderBy: { createdAt: "asc" },
       take: 30,
     });
+
+    const history = rawHistory.reverse();
 
     const { text: responseText, toolExecutions } = await processUserMessage(
       waId,
