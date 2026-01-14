@@ -83,6 +83,11 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
       parts: [{ text: msg.content }],
     }));
 
+    console.log("--- ULTIMO MENSAJE EN HISTORIAL ENVIADO A GEMINI ---");
+    console.log(
+      JSON.stringify(recentHistory[recentHistory.length - 1], null, 2)
+    );
+
     const model = getGeminiModel(
       GEN_AI_MODEL_NAME,
       toolsDefinition,
