@@ -78,10 +78,13 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
     const mockRes = await handleMockMode(waId, message);
     if (mockRes) return mockRes;
 
-    const recentHistory = chatHistory.slice(-40).map((msg) => ({
-      role: msg.role === "assistant" ? "model" : "user",
-      parts: [{ text: msg.content }],
-    }));
+    const recentHistory = chatHistory
+      .slice(-40)
+      .filter((msg) => msg.content && msg.content.trim() !== "")
+      .map((msg) => ({
+        role: msg.role === "assistant" ? "model" : "user",
+        parts: [{ text: msg.content }],
+      }));
 
     console.log("--- ULTIMO MENSAJE EN HISTORIAL ENVIADO A GEMINI ---");
     console.log(

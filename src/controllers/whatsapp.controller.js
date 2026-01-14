@@ -32,14 +32,24 @@ export const receiveMessage = async (req, res) => {
   try {
     const incomingMessage = req.body.Body;
     const waId = req.body.From;
-    const senderName = req.body.ProfileName || "Cliente";
 
     if (!incomingMessage) {
       return res.status(200).send("OK");
     }
 
+    const savedUserMsg = await prisma.message.create({
+      data: {
+        waId: waId,
+        content: incomingMessage,
+        role: "user",
+      },
+    });
+
     const history = await prisma.message.findMany({
-      where: { waId: waId },
+      where: {
+        waId: waId,
+        id: { not: savedUserMsg.id },
+      },
       orderBy: { createdAt: "asc" },
       take: 30,
     });
@@ -49,14 +59,6 @@ export const receiveMessage = async (req, res) => {
       incomingMessage,
       history
     );
-
-    await prisma.message.create({
-      data: {
-        waId: waId,
-        content: incomingMessage,
-        role: "user",
-      },
-    });
 
     await prisma.message.create({
       data: {
@@ -75,7 +77,6 @@ export const receiveMessage = async (req, res) => {
           from: process.env.TWILIO_WHATSAPP_NUMBER,
           to: waId,
         });
-
         await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
@@ -85,7 +86,6 @@ export const receiveMessage = async (req, res) => {
     console.error("Error en webhook de WhatsApp:", error);
 
     const waId = req.body?.From;
-
     if (waId) {
       try {
         await client.messages.create({
