@@ -10,7 +10,7 @@ export const functionsMap = {
       name: p.name,
       price: p.price,
       stock: p.stock,
-      description: product.description,
+      description: p.description,
     }));
   },
   get_product_details: async ({ product_id }) => {
