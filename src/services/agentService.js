@@ -82,32 +82,55 @@ export const processUserMessage = async (waId, message, chatHistory = []) => {
     const mockRes = await handleMockMode(waId, message);
     if (mockRes) return { text: mockRes, toolExecutions: [] };
 
-    const recentHistory = chatHistory.slice(-40).map((msg) => {
-      if (msg.role === "function" && msg.metadata) {
-        return {
-          role: "function",
-          parts: [
-            {
-              functionResponse: {
-                name: msg.metadata.name,
-                response: { result: msg.metadata.response },
+    const formattedHistory = chatHistory
+      .map((msg) => {
+        if (msg.role === "user") {
+          return {
+            role: "user",
+            parts: [{ text: msg.content }],
+          };
+        }
+
+        if (msg.role === "assistant") {
+          return {
+            role: "model",
+            parts: [{ text: msg.content }],
+          };
+        }
+
+        if (msg.role === "function" && msg.metadata) {
+          return {
+            role: "function",
+            parts: [
+              {
+                functionResponse: {
+                  name: msg.metadata.name,
+                  response: { result: msg.metadata.response },
+                },
               },
-            },
-          ],
-        };
-      }
-      return {
-        role: msg.role === "assistant" ? "model" : "user",
-        parts: [{ text: msg.content }],
-      };
-    });
+            ],
+          };
+        }
+
+        return null;
+      })
+      .filter(Boolean);
+
+    console.log(
+      `\n--- MEMORIA ENVIADA A GEMINI (${formattedHistory.length} msgs) ---`
+    );
+    console.dir(formattedHistory, { depth: null, colors: true });
+    console.log(
+      "-----------------------------------------------------------\n"
+    );
 
     const model = getGeminiModel(GEN_AI_MODEL_NAME, toolsDefinition);
+
     const chat = model.startChat({
       generationConfig: { temperature: 0.5, maxOutputTokens: 1000 },
       history: [
         { role: "user", parts: [{ text: SYSTEM_PROMPT }] },
-        ...recentHistory,
+        ...formattedHistory,
       ],
     });
 
